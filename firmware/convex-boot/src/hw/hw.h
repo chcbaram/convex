@@ -28,7 +28,7 @@ extern "C" {
 #include "gpio.h"
 #include "lcd.h"
 #include "resize.h"
-// #include "usb.h"
+#include "usb.h"
 
 
 bool hwInit(void);

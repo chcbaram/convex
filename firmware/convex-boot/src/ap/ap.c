@@ -8,7 +8,7 @@
 
 static void bootUp(void);
 static void cliUpdate(void);
-
+static void lcdUpdate(void);
 
 
 void apInit(void)
@@ -18,12 +18,18 @@ void apInit(void)
   cliLogo();
   #endif
 
-  // bootUp();
+  bootUp();
 
-  // uf2Init();
-  // usbInit();
+  uf2Init();
+  usbInit();
 
-  // bootInit();
+  bootInit();
+
+  lcdClearBuffer(black);
+  lcdPrintfRect(0, 0, LCD_WIDTH, LCD_HEIGHT, white, 32,
+                LCD_ALIGN_H_CENTER | LCD_ALIGN_V_CENTER,
+                "CONVEX BOOT");
+  lcdUpdateDraw();
 }
 
 void apMain(void)
@@ -40,8 +46,42 @@ void apMain(void)
     }
 
     cliUpdate();
-    // usbUpdate();
-    // uf2Update();
+    usbUpdate();
+    uf2Update();
+    lcdUpdate();
+  }
+}
+
+void lcdUpdate(void)
+{
+  static uint32_t pre_time = 0;
+
+
+  if (lcdDrawAvailable() && millis()-pre_time >= 100)
+  {
+    pre_time = millis();
+
+    lcdClearBuffer(black);  
+
+
+    rtc_time_t rtc_time;
+    rtc_date_t rtc_date;
+    const char *week_str[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+
+    rtcGetTime(&rtc_time);
+    rtcGetDate(&rtc_date);
+
+    lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
+    lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                  "%02d-%d-%02d %s  %02d:%02d:%02d", 
+                  rtc_date.year, rtc_date.month, rtc_date.day, week_str[rtc_date.week],
+                  rtc_time.hours, rtc_time.minutes, rtc_time.seconds
+                );
+
+    lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 32, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                  "BARAM-BOOT");
+
+    lcdRequestDraw();
   }
 }
 
@@ -51,7 +91,7 @@ void cliUpdate(void)
   cliMain();
   #endif
 }
-#if 0
+
 void bootUp(void)
 {
   static bool is_run_fw = true;
@@ -70,7 +110,7 @@ void bootUp(void)
     is_run_fw = false;
   }
 
-
+  #ifdef _USE_HW_KEYS
   uint32_t pre_time = millis();
   while(millis()-pre_time <= 5)
   {
@@ -80,7 +120,8 @@ void bootUp(void)
   {
     is_run_fw = false;
   }
-
+  #endif
+  
   if (boot_param & (1<<MODE_BIT_UPDATE))
   {
     boot_param &= ~(1<<MODE_BIT_UPDATE);
@@ -124,4 +165,3 @@ void bootUp(void)
   logPrintf("\n");
   logPrintf("Boot Mode..\n"); 
 }
-#endif

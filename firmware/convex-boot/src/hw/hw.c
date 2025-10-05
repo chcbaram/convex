@@ -46,7 +46,7 @@ bool hwInit(void)
   qspiInit();
   flashInit();
   // keysInit();
-  // loaderInit();
+  loaderInit();
  
   lcdInit();
 

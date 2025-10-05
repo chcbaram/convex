@@ -4,7 +4,7 @@
 
 
 #include "bsp.h"
-
+#include <time.h>
 
 #define _DEF_FIRMWATRE_VERSION    "V251005R1"
 #define _DEF_BOARD_NAME           "CONVEX-BOOT"
@@ -12,8 +12,8 @@
 
 #define _USE_HW_MICROS
 #define _USE_HW_FLASH
-// #define _USE_HW_YMODEM
-// #define _USE_HW_LOADER
+#define _USE_HW_YMODEM
+#define _USE_HW_LOADER
 #define _USE_HW_QSPI
 
 
@@ -65,7 +65,7 @@
 
 #define _USE_HW_LCD
 #define      HW_LCD_LVGL            1
-#define      HW_LCD_LOGO            1
+#define      HW_LCD_LOGO            0
 #define _USE_HW_ST7789
 #define      HW_LCD_WIDTH           284
 #define      HW_LCD_HEIGHT          76

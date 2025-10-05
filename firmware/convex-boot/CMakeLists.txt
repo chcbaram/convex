@@ -16,7 +16,7 @@ project(${PRJ_NAME}
 
 set(EXECUTABLE ${PRJ_NAME}.elf)
 
-# include(src/hw/driver/usb/CMakeLists.txt)
+include(src/hw/driver/usb/CMakeLists.txt)
 
 
 
@@ -26,8 +26,8 @@ file(GLOB SRC_FILES CONFIGURE_DEPENDS
   src/*.c
   src/ap/*.cpp
   src/ap/*.c
-  # src/ap/modules/uf2/*.c
-  # src/ap/modules/boot/*.c
+  src/ap/modules/uf2/*.c
+  src/ap/modules/boot/*.c
   src/bsp/*.c
   src/bsp/device/*.c
 
