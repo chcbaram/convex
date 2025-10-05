@@ -48,7 +48,7 @@ bool hwInit(void)
   // keysInit();
   // loaderInit();
  
-  st7789Init();
-  gpioPinWrite(LCD_BL, _DEF_HIGH);
+  lcdInit();
+
   return true;
 }

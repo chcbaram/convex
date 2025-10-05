@@ -27,6 +27,7 @@ extern "C" {
 #include "qspi.h"
 #include "gpio.h"
 #include "lcd.h"
+#include "resize.h"
 // #include "usb.h"
 
 

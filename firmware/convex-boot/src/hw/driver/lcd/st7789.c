@@ -103,13 +103,13 @@ bool st7789Reset(void)
   delay(50);
 
   spiBegin(spi_ch);
-  spiSetDataMode(spi_ch, SPI_MODE3);
+  spiSetDataMode(spi_ch, SPI_MODE0);
   spiAttachTxInterrupt(spi_ch, transferDoneISR);
 
   st7789InitRegs();
 
-  st7789SetRotation(4); // 4, 3
-  st7789FillRect(0, 0, HW_LCD_WIDTH, HW_LCD_HEIGHT, red);
+  st7789SetRotation(0); 
+  st7789FillRect(0, 0, HW_LCD_WIDTH, HW_LCD_HEIGHT, black);
   
   return true;
 }
@@ -148,14 +148,11 @@ void st7789InitRegs(void)
   writecommand(ST7789_SLPOUT);  //  2: Out of sleep mode, 0 args, w/delay
   delay(10);
 
-  writecommand(ST7789_INVON);  // 13: Don't invert display, no args, no delay
-
   writecommand(ST7789_MADCTL);  // 14: Memory access control (directions), 1 arg:
   writedata(0x08);              //     row addr/col addr, bottom to top refresh
 
   writecommand(ST7789_COLMOD);  // 15: set color mode, 1 arg, no delay:
   writedata(0x05);              //     16-bit color
-
 
   writecommand(ST7789_CASET);   //  1: Column addr set, 4 args, no delay:
   writedata(0x00);
@@ -185,34 +182,34 @@ void st7789SetRotation(uint8_t mode)
   switch (mode)
   {
     case 0:
-      writedata(MADCTL_MX | MADCTL_MY | MADCTL_RGB);
-      colstart = 0;
-      rowstart = 320 - HW_LCD_HEIGHT;
+      writedata(MADCTL_MX | MADCTL_MV);
+      colstart = 18;
+      rowstart = 82;
       break;
 
-    case 1:
-      writedata(MADCTL_MY | MADCTL_MV | MADCTL_RGB);
-      colstart = 320 - HW_LCD_WIDTH;
-      rowstart = 0;
-      break;
+    // case 1:
+    //   writedata(MADCTL_MY | MADCTL_MV | MADCTL_RGB);
+    //   colstart = 320 - HW_LCD_WIDTH;
+    //   rowstart = 0;
+    //   break;
 
-    case 2:
-      writedata(MADCTL_RGB);
-      colstart = 0;
-      rowstart = 0;      
-      break;
+    // case 2:
+    //   writedata(MADCTL_RGB);
+    //   colstart = 82;
+    //   rowstart = 18;      
+    //   break;
 
-    case 3:
-      writedata(MADCTL_MX | MADCTL_MV | MADCTL_RGB);
-      colstart = 0;
-      rowstart = 0;      
-      break;
+    // case 3:
+    //   writedata(MADCTL_MX | MADCTL_MV | MADCTL_RGB);
+    //   colstart = 0;
+    //   rowstart = 0;      
+    //   break;
 
-    case 4:
-      writedata(MADCTL_MV | MADCTL_RGB);
-      colstart = 0;
-      rowstart = 0;     
-      break;
+    // case 4:
+    //   writedata(MADCTL_MV | MADCTL_RGB);
+    //   colstart = 0;
+    //   rowstart = 0;     
+    //   break;
   }
 }
 
