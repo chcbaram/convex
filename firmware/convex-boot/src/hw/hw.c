@@ -42,6 +42,7 @@ bool hwInit(void)
   i2cInit();
   eepromInit();
   // spiInit();
+  qspiInit();
   flashInit();
   // keysInit();
   // loaderInit();

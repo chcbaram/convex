@@ -25,6 +25,7 @@ extern "C" {
 // #include "usb.h"
 #include "util_core.h"
 #include "qbuffer.h"
+#include "qspi.h"
 
 
 bool hwInit(void);

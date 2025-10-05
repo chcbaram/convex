@@ -14,6 +14,8 @@
 #define _USE_HW_FLASH
 // #define _USE_HW_YMODEM
 // #define _USE_HW_LOADER
+#define _USE_HW_QSPI
+
 
 #define _USE_HW_LED
 #define      HW_LED_MAX_CH          1
@@ -84,6 +86,6 @@
 #define _USE_CLI_HW_KEYS            1
 #define _USE_CLI_HW_LOADER          1
 #define _USE_CLI_HW_EEPROM          1
-
+#define _USE_CLI_HW_QSPI            1
 
 #endif

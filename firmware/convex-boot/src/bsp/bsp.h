@@ -11,6 +11,8 @@ extern "C" {
 #include "stm32h7xx_hal.h"
 
 
+#define assert(x)   
+
 
 void logPrintf(const char *fmt, ...);
 
