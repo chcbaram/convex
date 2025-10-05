@@ -385,17 +385,9 @@ void DMA1_Stream1_IRQHandler(void)
 void HAL_SPI_MspInit(SPI_HandleTypeDef* spiHandle)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   if(spiHandle->Instance==SPI1)
   {
-    PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SPI1;
-    PeriphClkInitStruct.Spi123ClockSelection = RCC_SPI123CLKSOURCE_PLL;
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-    {
-      Error_Handler();
-    }
-
     /* DMA controller clock enable */
     __HAL_RCC_DMA1_CLK_ENABLE();
 
