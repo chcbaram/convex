@@ -1,12 +1,5 @@
-/*
- * lcd.h
- *
- *  Created on: 2020. 8. 5.
- *      Author: Baram
- */
-
-#ifndef SRC_COMMON_HW_INCLUDE_LCD_H_
-#define SRC_COMMON_HW_INCLUDE_LCD_H_
+#ifndef LCD_H_
+#define LCD_H_
 
 #ifdef __cplusplus
 extern "C" {

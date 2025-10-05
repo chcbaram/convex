@@ -22,10 +22,12 @@ extern "C" {
 #include "rtc.h"
 #include "reset.h"
 #include "loader.h"
-// #include "usb.h"
 #include "util_core.h"
 #include "qbuffer.h"
 #include "qspi.h"
+#include "gpio.h"
+#include "lcd.h"
+// #include "usb.h"
 
 
 bool hwInit(void);

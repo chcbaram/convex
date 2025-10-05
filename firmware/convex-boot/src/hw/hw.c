@@ -1,5 +1,5 @@
 #include "hw.h"
-
+#include "lcd/st7789.h"
 
 
 extern uint32_t _fw_flash_begin;
@@ -39,13 +39,16 @@ bool hwInit(void)
 
   rtcInit();
   resetInit();
+  gpioInit();
   i2cInit();
   eepromInit();
-  // spiInit();
+  spiInit();
   qspiInit();
   flashInit();
   // keysInit();
   // loaderInit();
-  
+ 
+  st7789Init();
+  gpioPinWrite(LCD_BL, _DEF_HIGH);
   return true;
 }

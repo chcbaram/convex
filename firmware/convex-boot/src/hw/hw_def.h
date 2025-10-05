@@ -44,8 +44,8 @@
 // #define      HW_KEYS_MAX_CH         HW_BUTTON_MAX_CH
 // #define      HW_KEYS_PRESS_MAX      8
 
-// #define _USE_HW_SPI
-// #define      HW_SPI_MAX_CH          1
+#define _USE_HW_SPI
+#define      HW_SPI_MAX_CH          1
 
 #define _USE_HW_I2C
 #define      HW_I2C_MAX_CH          1
@@ -59,6 +59,16 @@
 
 #define _USE_HW_RESET
 #define      HW_RESET_BOOT          1
+
+#define _USE_HW_GPIO
+#define      HW_GPIO_MAX_CH         GPIO_PIN_MAX
+
+#define _USE_HW_LCD
+#define      HW_LCD_LVGL            1
+#define      HW_LCD_LOGO            1
+#define _USE_HW_ST7789
+#define      HW_LCD_WIDTH           284
+#define      HW_LCD_HEIGHT          76
 
 
 #define FLASH_SIZE_TAG              0x400
@@ -87,5 +97,16 @@
 #define _USE_CLI_HW_LOADER          1
 #define _USE_CLI_HW_EEPROM          1
 #define _USE_CLI_HW_QSPI            1
+#define _USE_CLI_HW_GPIO            1
+
+
+typedef enum
+{
+  LCD_CS,
+  LCD_RESET,
+  LCD_RS,
+  LCD_BL,
+  GPIO_PIN_MAX
+} GpioPinName_t;
 
 #endif
