@@ -48,8 +48,8 @@
 #define _USE_HW_I2C
 #define      HW_I2C_MAX_CH          1
 
-// #define _USE_HW_EEPROM
-// #define         EEPROM_CHIP_ZD24C128
+#define _USE_HW_EEPROM
+#define         EEPROM_CHIP_BL24C256
 
 #define _USE_HW_RTC
 #define      HW_RTC_BOOT_MODE       RTC_BKP_DR3
@@ -83,6 +83,7 @@
 #define _USE_CLI_HW_RESET           1
 #define _USE_CLI_HW_KEYS            1
 #define _USE_CLI_HW_LOADER          1
+#define _USE_CLI_HW_EEPROM          1
 
 
 #endif
