@@ -45,8 +45,11 @@
 // #define _USE_HW_SPI
 // #define      HW_SPI_MAX_CH          1
 
-// #define _USE_HW_I2C
-// #define      HW_I2C_MAX_CH          1
+#define _USE_HW_I2C
+#define      HW_I2C_MAX_CH          1
+
+// #define _USE_HW_EEPROM
+// #define         EEPROM_CHIP_ZD24C128
 
 #define _USE_HW_RTC
 #define      HW_RTC_BOOT_MODE       RTC_BKP_DR3

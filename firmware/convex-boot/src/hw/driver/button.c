@@ -22,7 +22,6 @@ typedef struct
   uint32_t      pin;
   uint32_t      pull;
   GPIO_PinState on_state;
-  IRQn_Type     irq_type;
 } button_pin_t;
 
 
@@ -33,10 +32,10 @@ static void cliButton(cli_args_t *args);
 static bool buttonGetPin(uint8_t ch);
 
 static const button_pin_t button_pin[BUTTON_MAX_CH] =
-    {
-      {GPIOC, GPIO_PIN_6, GPIO_NOPULL, GPIO_PIN_SET, EXTI13_IRQn},  // 0. B1
-      {GPIOB, GPIO_PIN_7, GPIO_PULLUP, GPIO_PIN_SET, EXTI5_IRQn },  // 1. B2
-    };
+{
+  {GPIOC, GPIO_PIN_6, GPIO_NOPULL, GPIO_PIN_SET}, // 0. B1
+  {GPIOB, GPIO_PIN_7, GPIO_PULLUP, GPIO_PIN_SET}, // 1. B2
+};
 
 
 static button_t button_tbl[BUTTON_MAX_CH];

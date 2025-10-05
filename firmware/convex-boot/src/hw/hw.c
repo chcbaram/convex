@@ -39,7 +39,7 @@ bool hwInit(void)
 
   rtcInit();
   resetInit();
-  // i2cInit();
+  i2cInit();
   // spiInit();
   flashInit();
   // keysInit();
