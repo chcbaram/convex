@@ -112,6 +112,7 @@ int main(void)
   MX_QUADSPI_Init();
   MX_SPI1_Init();
   MX_TIM15_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */

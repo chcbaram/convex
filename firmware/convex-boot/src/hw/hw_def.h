@@ -15,7 +15,7 @@
 #define _USE_HW_YMODEM
 #define _USE_HW_LOADER
 #define _USE_HW_QSPI
-
+#define _USE_HW_KEYS
 
 #define _USE_HW_LED
 #define      HW_LED_MAX_CH          1
@@ -39,10 +39,6 @@
 #define      HW_LOG_CH              HW_UART_CH_SWD
 #define      HW_LOG_BOOT_BUF_MAX    2048
 #define      HW_LOG_LIST_BUF_MAX    4096
-
-// #define _USE_HW_KEYS
-// #define      HW_KEYS_MAX_CH         HW_BUTTON_MAX_CH
-// #define      HW_KEYS_PRESS_MAX      8
 
 #define _USE_HW_SPI
 #define      HW_SPI_MAX_CH          1
@@ -82,8 +78,6 @@
 
 
 #define KBD_NAME                    "CONVEX"
-#define MATRIX_ROWS                 5
-#define MATRIX_COLS                 16
 
 
 

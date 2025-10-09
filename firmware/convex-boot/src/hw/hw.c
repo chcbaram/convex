@@ -1,5 +1,4 @@
 #include "hw.h"
-#include "lcd/st7789.h"
 
 
 extern uint32_t _fw_flash_begin;
@@ -45,7 +44,7 @@ bool hwInit(void)
   spiInit();
   qspiInit();
   flashInit();
-  // keysInit();
+  keysInit();
   loaderInit();
  
   lcdInit();
