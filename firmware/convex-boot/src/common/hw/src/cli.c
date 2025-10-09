@@ -734,6 +734,11 @@ bool cliKeepLoop(void)
   }
 }
 
+__WEAK void cliLoopIdle(void)
+{
+
+}
+
 bool cliAdd(const char *cmd_str, void (*p_func)(cli_args_t *))
 {
   bool ret = true;

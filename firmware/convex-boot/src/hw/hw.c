@@ -45,6 +45,7 @@ bool hwInit(void)
   qspiInit();
   flashInit();
   keysInit();
+  ws2812Init();
   loaderInit();
  
   lcdInit();

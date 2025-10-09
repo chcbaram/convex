@@ -52,6 +52,12 @@ void apMain(void)
   }
 }
 
+void cliLoopIdle(void)
+{
+  usbUpdate();
+  uf2Update();
+}
+
 void lcdUpdate(void)
 {
   static uint32_t pre_time = 0;

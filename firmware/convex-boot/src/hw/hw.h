@@ -29,6 +29,7 @@ extern "C" {
 #include "lcd.h"
 #include "resize.h"
 #include "usb.h"
+#include "ws2812.h"
 
 
 bool hwInit(void);

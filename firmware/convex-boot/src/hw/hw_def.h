@@ -59,6 +59,9 @@
 #define _USE_HW_GPIO
 #define      HW_GPIO_MAX_CH         GPIO_PIN_MAX
 
+#define _USE_HW_WS2812
+#define      HW_WS2812_MAX_CH       107
+
 #define _USE_HW_LCD
 #define      HW_LCD_LVGL            1
 #define      HW_LCD_LOGO            0
@@ -92,6 +95,7 @@
 #define _USE_CLI_HW_EEPROM          1
 #define _USE_CLI_HW_QSPI            1
 #define _USE_CLI_HW_GPIO            1
+#define _USE_CLI_HW_WS2812          1
 
 
 typedef enum
