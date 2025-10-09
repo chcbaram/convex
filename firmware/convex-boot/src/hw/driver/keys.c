@@ -170,9 +170,17 @@ void cliCmd(cli_args_t *args)
 
   if (args->argc == 1 && args->isStr(0, "info"))
   {
+    uint32_t pre_time;
+    uint32_t exe_time;
+
     cliShowCursor(false);
 
+    pre_time = micros();
+    keysUpdate();
+    exe_time = micros() - pre_time;
 
+    cliPrintf("scan time : %d us\n", exe_time);
+    
     while(cliKeepLoop())
     {
       keysUpdate();
