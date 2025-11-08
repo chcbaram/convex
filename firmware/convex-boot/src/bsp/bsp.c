@@ -1,5 +1,5 @@
 #include "bsp.h"
-// #include "usb.h"
+#include "usb.h"
 
 static void SystemClock_Config(void);
 static void PeriphCommonClock_Config(void);
@@ -23,7 +23,7 @@ bool bspInit(void)
 
 bool bspDeInit(void)
 {
-  // usbDeInit();
+  usbDeInit();
   delay(50);
 
   // Disable Interrupts

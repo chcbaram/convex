@@ -107,8 +107,15 @@ typedef struct
   uint32_t magicEnd;
 } UF2_Block;
 
+typedef struct
+{
+  uint8_t state;
+  uint8_t percent;
+} uf2_info_t;
+
 void uf2Init(void);
 void uf2Update(void);
+void uf2GetInfo(uf2_info_t *p_info);
 
 int  uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state);
 void uf2_flash_complete(WriteState *state);

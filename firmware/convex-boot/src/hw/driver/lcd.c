@@ -117,7 +117,7 @@ void transferDoneISR(void)
 
 bool lcdInit(void)
 {
-  backlight_value = 100;
+  backlight_value = 0;
 
 
   is_init = st7789Init();

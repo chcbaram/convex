@@ -39,7 +39,7 @@ static uint32_t _flash_size;
 static uint16_t _flash_crc = 0;
 static uint32_t _flash_len = 0;
 static bool is_jump_fw = false;
-
+static uf2_info_t uf2_info;
 
 
 
@@ -134,6 +134,9 @@ static inline bool is_uf2_block(UF2_Block const *bl)
 void uf2Init(void)
 {
   _flash_size = FLASH_SIZE_FIRM;
+
+  uf2_info.state = 0;
+  uf2_info.percent = 0;
 }
 
 void uf2Update(void)
@@ -162,6 +165,10 @@ void uf2Update(void)
   }
 }
 
+void uf2GetInfo(uf2_info_t *p_info)
+{
+  *p_info = uf2_info;
+}
 
 /*------------------------------------------------------------------*/
 /* Write UF2
@@ -192,6 +199,8 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
     // TODO family matches VID/PID
     return -1;
   }
+
+  uf2_info.state = 1;
 
   //------------- Update written blocks -------------//
   if (bl->numBlocks)
@@ -228,6 +237,8 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
         uf2_flash_flush(state);
       }
     }
+
+    uf2_info.percent = (state->numWritten * 100)/state->numBlocks;
   }
 
   return BPB_SECTOR_SIZE;

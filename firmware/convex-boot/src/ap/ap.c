@@ -30,6 +30,8 @@ void apInit(void)
                 LCD_ALIGN_H_CENTER | LCD_ALIGN_V_CENTER,
                 "CONVEX BOOT");
   lcdUpdateDraw();
+
+  lcdSetBackLight(100);
 }
 
 void apMain(void)
@@ -77,15 +79,32 @@ void lcdUpdate(void)
     rtcGetTime(&rtc_time);
     rtcGetDate(&rtc_date);
 
-    lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
-    lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
-                  "%02d-%d-%02d %s  %02d:%02d:%02d", 
-                  rtc_date.year, rtc_date.month, rtc_date.day, week_str[rtc_date.week],
-                  rtc_time.hours, rtc_time.minutes, rtc_time.seconds
-                );
+    uf2_info_t info;
 
-    lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 32, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
-                  "BARAM-BOOT");
+    uf2GetInfo(&info);
+    
+    if (info.state == 0)
+    {
+      lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
+      lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                    "%02d-%d-%02d %s  %02d:%02d:%02d", 
+                    rtc_date.year, rtc_date.month, rtc_date.day, week_str[rtc_date.week],
+                    rtc_time.hours, rtc_time.minutes, rtc_time.seconds
+                  );
+      lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 32, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                    "BARAM-BOOT");
+    }
+    else
+    {
+      lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
+      lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                    "Update..");
+
+      lcdPrintf(0, 25, white, "%3d%%", info.percent);
+      
+      lcdDrawRect(0, 40, LCD_WIDTH, 24, white);
+      lcdDrawFillRect(5, 42, info.percent * (LCD_WIDTH - 10) / 100, 20, white);      
+    }
 
     lcdRequestDraw();
   }
