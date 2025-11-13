@@ -16,9 +16,7 @@ const typedef struct
 
 static led_tbl_t led_tbl[LED_MAX_CH] = 
 {
-  {GPIOC, GPIO_PIN_13,  GPIO_PIN_RESET, GPIO_PIN_SET},
-  {GPIOB, GPIO_PIN_12,  GPIO_PIN_RESET, GPIO_PIN_SET},
-  {GPIOB, GPIO_PIN_13,  GPIO_PIN_RESET, GPIO_PIN_SET},
+  {GPIOC, GPIO_PIN_12,  GPIO_PIN_RESET, GPIO_PIN_SET},
 };
 
 

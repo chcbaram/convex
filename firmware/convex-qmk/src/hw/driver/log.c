@@ -95,6 +95,11 @@ bool logInit(void)
   return true;
 }
 
+bool logIsOpen(void)
+{
+  return is_open;
+}
+
 void logEnable(void)
 {
   is_enable = true;

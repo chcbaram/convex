@@ -17,6 +17,7 @@ extern "C" {
 
 
 bool logInit(void);
+bool logIsOpen(void);
 void logEnable(void);
 void logDisable(void);
 bool logOpen(uint8_t ch, uint32_t baud);

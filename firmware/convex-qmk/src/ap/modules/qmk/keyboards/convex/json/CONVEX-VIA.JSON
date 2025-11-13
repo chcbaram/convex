@@ -141,6 +141,11 @@
   ],
   
 	"layouts": {
+
+    "labels": [
+      "Split Keypad"
+    ],
+
 		"keymap": [
       [
         "0,0",

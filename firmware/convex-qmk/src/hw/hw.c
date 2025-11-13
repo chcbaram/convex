@@ -62,6 +62,6 @@ bool hwInit(void)
   loaderInit();
   
   lcdInit();
-  
+
   return true;
 }
