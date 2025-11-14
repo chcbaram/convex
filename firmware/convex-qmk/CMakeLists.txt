@@ -32,8 +32,17 @@ file(GLOB SRC_FILES CONFIGURE_DEPENDS
   src/ap/*.c
   src/bsp/*.c
   src/bsp/device/*.c
+  src/bsp/rtos/*.c
+
+  src/ap/modules/*.c
+  src/ap/modules/cli/*.c
 
   src/lib/ST/STM32_USB_Device_Library/Core/Src/*.c
+  
+  src/lib/FreeRTOS/Source/*.c
+  src/lib/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1/*.c
+  src/lib/FreeRTOS/Source/CMSIS_RTOS/*.c  
+  src/lib/FreeRTOS/Source/portable/MemMang/heap_4.c
 
   ${EEPROM_FILES}
 )
@@ -76,6 +85,7 @@ target_include_directories(${EXECUTABLE} PRIVATE
   src/ap/modules
   src/bsp
   src/bsp/device
+  src/bsp/rtos  
   src/common 
   src/common/core
   src/common/hw/include 
@@ -93,6 +103,10 @@ target_include_directories(${EXECUTABLE} PRIVATE
   src/lib/ST/CMSIS/Device/ST/STM32H7xx/Include
   src/lib/ST/STM32H7xx_HAL_Driver/Inc
   src/lib/ST/STM32_USB_Device_Library/Core/Inc
+
+  src/lib/FreeRTOS/Source/CMSIS_RTOS
+  src/lib/FreeRTOS/Source/include
+  src/lib/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1  
 
   ${QMK_INC_DIR}
 )

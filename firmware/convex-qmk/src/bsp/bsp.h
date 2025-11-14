@@ -9,7 +9,7 @@ extern "C" {
 
 #include "assert.h"
 #include "stm32h7xx_hal.h"
-
+#include "rtos.h"
 
 
 void logPrintf(const char *fmt, ...);

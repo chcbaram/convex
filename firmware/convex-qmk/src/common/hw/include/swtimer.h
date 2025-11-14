@@ -10,12 +10,12 @@ extern "C" {
 
 #ifdef _USE_HW_SWTIMER
 
-#ifndef ON
-#define ON 1
+#ifndef ON_SWTIMER
+#define ON_SWTIMER 1
 #endif
 
-#ifndef OFF
-#define OFF 0
+#ifndef OFF_SWTIMER
+#define OFF_SWTIMER 0
 #endif
 
 #ifndef NULL

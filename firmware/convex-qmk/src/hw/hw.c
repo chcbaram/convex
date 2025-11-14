@@ -39,6 +39,7 @@ bool hwInit(void)
 
   rtcInit();
   resetInit();
+  swtimerInit();
   gpioInit();
   i2cInit();
   eepromInit();
@@ -51,6 +52,9 @@ bool hwInit(void)
   #ifdef _USE_HW_ENCODER
   encoderInit();
   #endif
+
+  
+  threadInit();
 
   cdcInit();
   usbInit();

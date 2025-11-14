@@ -15,6 +15,7 @@
 #define _USE_HW_FLASH
 #define _USE_HW_YMODEM
 #define _USE_HW_LOADER
+#define _USE_HW_RTOS
 
 #define _USE_HW_LED
 #define      HW_LED_MAX_CH          1
@@ -77,8 +78,15 @@
 #define _USE_HW_RESET
 #define      HW_RESET_BOOT          1
 
+#define _USE_HW_SWTIMER
+#define      HW_SWTIMER_MAX_CH      8
+
 #define _USE_HW_GPIO
 #define      HW_GPIO_MAX_CH         GPIO_PIN_MAX
+
+#define _USE_HW_EVENT
+#define      HW_EVENT_Q_MAX         8
+#define      HW_EVENT_NODE_MAX      16 
 
 #define _USE_HW_LCD
 #define      HW_LCD_LVGL            1
@@ -110,6 +118,22 @@
 #define _USE_CLI_HW_LOADER          1
 #define _USE_CLI_HW_WS2812          1
 #define _USE_CLI_HW_GPIO            1
+
+
+//-- RTOS
+//
+#define _USE_HW_THREAD
+#define      HW_THREAD_MAX_CNT                  32
+
+#define _HW_DEF_THREAD_MAIN_PRI                 osPriorityNormal
+#define _HW_DEF_THREAD_MAIN_STACK               (8*1024)
+
+#define _HW_DEF_THREAD_MODULE_PRI               osPriorityNormal
+#define _HW_DEF_THREAD_MODULE_STACK             (4*1024)
+
+#define _HW_DEF_THREAD_CLI_PRI                  osPriorityNormal
+#define _HW_DEF_THREAD_CLI_STACK                (8*1024)
+
 
 
 typedef enum

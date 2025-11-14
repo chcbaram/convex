@@ -7,6 +7,7 @@ extern "C" {
 
 #include "hw_def.h"
 
+#include "osal/thread.h"
 
 #include "led.h"
 #include "uart.h"
@@ -30,6 +31,8 @@ extern "C" {
 #include "encoder.h"
 #include "lcd.h"
 #include "resize.h"
+#include "swtimer.h"
+#include "event.h"
 
 
 bool hwInit(void);

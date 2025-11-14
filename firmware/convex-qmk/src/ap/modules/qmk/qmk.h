@@ -11,9 +11,8 @@ extern "C" {
 #include "quantum.h"
 
 
-bool qmkInit(void);
-void qmkUpdate(void);
-
+void qmkLock(void);
+void qmkUnLock(void);
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,6 @@
 #include "bsp.h"
 #include "stm32h7xx_it.h"
+#include "hw_def.h"
 
 
 /**
@@ -55,10 +56,11 @@ void UsageFault_Handler(void)
 /**
   * @brief This function handles System service call via SWI instruction.
   */
+#ifndef _USE_HW_RTOS
 void SVC_Handler(void)
 {
- 
 }
+#endif
 
 /**
   * @brief This function handles Debug monitor.
@@ -71,10 +73,21 @@ void DebugMon_Handler(void)
 /**
   * @brief This function handles Pendable request for system service.
   */
+#ifndef _USE_HW_RTOS
 void PendSV_Handler(void)
 {
-
 }
+#endif
+
+#ifdef _USE_HW_RTOS
+extern void osSystickHandler(void);
+
+void SysTick_Handler(void)
+{
+  osSystickHandler();
+}
+#else
+extern void swtimerISR(void);
 
 /**
   * @brief This function handles System tick timer.
@@ -82,5 +95,7 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
   HAL_IncTick();
+  swtimerISR();
 }
+#endif
 

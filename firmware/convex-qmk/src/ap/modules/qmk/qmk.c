@@ -1,17 +1,43 @@
 #include "qmk.h"
 #include "qmk/port/port.h"
 
+#ifdef _USE_HW_RTOS
+#define lock()      xSemaphoreTake(mutex_lock, portMAX_DELAY);
+#define unLock()    xSemaphoreGive(mutex_lock);
 
+static SemaphoreHandle_t mutex_lock;
+#else
+#define lock()      
+#define unLock()    
+#endif
+
+static bool qmkInit(void);
+static void qmkUpdate(void);
+static void qmkThread(void const *arg);
 static void cliQmk(cli_args_t *args);
 static void idle_task(void);
 
 static bool is_suspended = false;
+
+MODULE_DEF(qmk) 
+{
+  .name = "qmk",
+  .priority = MODULE_PRI_LOW,
+  .init = qmkInit
+};
+
 
 
 
 
 bool qmkInit(void)
 {
+  bool ret;
+
+  #ifdef _USE_HW_RTOS
+  mutex_lock = xSemaphoreCreateMutex();
+  #endif
+
   eeprom_init();
   via_hid_init();
 
@@ -26,8 +52,23 @@ bool qmkInit(void)
   logPrintf("     MATRIX_COLS : %d\n", MATRIX_COLS);
   logPrintf("     DEBOUNCE    : %d\n", DEBOUNCE);
 
+  ret = threadCreate("qmk", qmkThread, NULL, _HW_DEF_THREAD_MODULE_PRI, _HW_DEF_THREAD_MODULE_STACK);
+  assert(ret);
+
+  logPrintf("[%s] qmkThreadInit()\n", ret ? "OK":"E_");
+
   cliAdd("qmk", cliQmk);
-  return true;
+  return ret;
+}
+
+void qmkLock(void)
+{
+  lock();
+}
+
+void qmkUnLock(void)
+{
+  unLock();
 }
 
 void qmkUpdate(void)
@@ -80,6 +121,15 @@ void idle_task(void)
 #ifdef KKUK_ENABLE
   kkuk_idle();
 #endif
+}
+
+void qmkThread(void const *arg)
+{
+  while(1)
+  {
+    qmkUpdate();
+    delay(1);
+  }
 }
 
 void cliQmk(cli_args_t *args)

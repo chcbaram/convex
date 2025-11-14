@@ -117,6 +117,14 @@ SECTIONS
     . = ALIGN(4);
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
+
+    . = ALIGN(8);
+    _smodule = .;
+    KEEP (*(.module))
+    KEEP (*(.module*))
+    _emodule = .;
+
+
     . = ALIGN(4);
   } >FLASH
 
