@@ -5,7 +5,7 @@
 #ifdef _USE_HW_WS2812
 #include "cli.h"
 
-#define BIT_PERIOD (130) // 1300ns, 80Mhz
+#define BIT_PERIOD (130) // 1300ns, 
 #define BIT_HIGH   (70)  // 700ns
 #define BIT_LOW    (35)  // 350ns
 #define BIT_ZERO   (50)
@@ -16,6 +16,9 @@
 
 
 bool is_init = false;
+volatile bool is_busy = false;
+volatile bool is_req_dma = false;
+
 
 
 typedef struct
@@ -38,6 +41,7 @@ static DMA_HandleTypeDef hdma_tim3_ch1;
 static void cliCmd(cli_args_t *args);
 #endif
 static bool ws2812InitHw(void);
+static void ws2812Callback(TIM_HandleTypeDef *htim);
 
 
 
@@ -164,17 +168,34 @@ bool ws2812InitHw(void)
 
   __HAL_LINKDMA(&htim3,hdma[TIM_DMA_ID_CC1],hdma_tim3_ch1);
 
-  // HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 5, 0);
-  // HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
+  HAL_NVIC_SetPriority(DMA1_Stream2_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream2_IRQn);
 
+
+  HAL_TIM_RegisterCallback(&htim3, HAL_TIM_PWM_PULSE_FINISHED_CB_ID, ws2812Callback);
+
+  return true;
+}
+
+bool ws2812ReqDMA(void)
+{
+  HAL_TIM_PWM_Start_DMA(ws2812.h_timer, ws2812.channel,  (const uint32_t *)bit_buf, sizeof(bit_buf)/sizeof(BIT_TYPE));
   return true;
 }
 
 bool ws2812Refresh(void)
 {
-  HAL_DMA_IRQHandler(&hdma_tim3_ch1);
-  HAL_TIM_PWM_Stop_DMA(ws2812.h_timer, ws2812.channel);
-  HAL_TIM_PWM_Start_DMA(ws2812.h_timer, ws2812.channel,  (const uint32_t *)bit_buf, sizeof(bit_buf)/sizeof(BIT_TYPE));
+  // HAL_DMA_IRQHandler(&hdma_tim3_ch1);
+  // HAL_TIM_PWM_Stop_DMA(ws2812.h_timer, ws2812.channel);
+  if (is_busy)
+  {
+    is_req_dma = true;
+  }
+  else
+  {
+    is_busy = true;
+    ws2812ReqDMA();  
+  }
   return true;
 }
 
@@ -244,6 +265,16 @@ void ws2812SetColor(uint32_t ch, uint32_t color)
   memcpy(&bit_buf[offset + ch*24 + 8*0], g_bit, 8*sizeof(BIT_TYPE));
   memcpy(&bit_buf[offset + ch*24 + 8*1], r_bit, 8*sizeof(BIT_TYPE));
   memcpy(&bit_buf[offset + ch*24 + 8*2], b_bit, 8*sizeof(BIT_TYPE));
+}
+
+void ws2812Callback(TIM_HandleTypeDef *htim)
+{
+  if (is_req_dma)
+  {
+    is_req_dma = false;
+    ws2812ReqDMA();    
+  }
+  is_busy = false;  
 }
 
 void DMA1_Stream2_IRQHandler(void)
