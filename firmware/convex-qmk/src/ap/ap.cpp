@@ -22,7 +22,9 @@ void apMain(void)
   lcdLogoOn();
   lcdDisplayOnDimming(1000);
   delay(1000);
+  lcdClear(black);
 
+  eventPub(EVENT_UI_READY, 1);
 
   pre_time = millis();
   while(1)
@@ -32,7 +34,7 @@ void apMain(void)
       is_led_on = false;
       ledOff(_DEF_LED1);
     }
-    delay(5);
+    delay(1);
   }
 }
 

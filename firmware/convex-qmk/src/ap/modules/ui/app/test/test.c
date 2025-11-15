@@ -7,7 +7,7 @@ static void lcdUpdate(void);
 
 
 static app_info_t app_info = {
-    .name = "TEST",
+    .name = "KEY TEST",
     .init = appInit,
     .run_func = appMain,
 };

@@ -165,6 +165,9 @@ void st7789InitRegs(void)
   writedata((uint8_t)((HW_LCD_WIDTH-1)>>8));
   writedata((uint8_t)((HW_LCD_WIDTH-1)>>0));    //     XEND = 
 
+  //
+  //
+
   writecommand(ST7789_RASET);   //  2: Row addr set, 4 args, no delay:
   writedata(0x00);
   writedata(0x00);              //     YSTART = 0

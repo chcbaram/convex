@@ -4,6 +4,17 @@
 #include "app/clock/clock.h"
 #include "app/test/test.h"
 
+
+enum
+{
+  APP_ID_CLOCK,
+  APP_ID_TEST,
+  // APP_ID_CALC,
+  APP_ID_MAX
+};
+
+
+
 #define APP_MAX_CNT     8
 
 
@@ -11,6 +22,9 @@
 static void uiInit(void);
 static void uiEvent(lv_event_t * e);
 static void uiThread(void const *arg);
+static void btnThread(void const *arg);
+static bool eventReceive(event_t *p_event);
+
 
 extern lv_indev_t * indev_keypad;
 
@@ -19,6 +33,7 @@ static app_info_t *p_app_info[APP_MAX_CNT];
 static bool is_req_run = false;
 static uint8_t req_run_id = 0;
 static lv_obj_t *main_disp = NULL;
+static bool is_ready = false;
 
 LV_FONT_DECLARE(neo);
 LV_FONT_DECLARE(convex32);
@@ -30,7 +45,8 @@ MODULE_DEF(launcher)
 {
   .name = "launcher",
   .priority = MODULE_PRI_LOW,
-  .init = launcherInit
+  .init = launcherInit,
+  .event_cb = eventReceive,
 };
 
 
@@ -39,9 +55,11 @@ bool launcherInit(void)
 {
   bool ret;
 
-  p_app_info[app_cnt++] = clockGetAppInfo();
-  p_app_info[app_cnt++] = testGetAppInfo();
-  // p_app_info[app_cnt++] = gameGetAppInfo();
+  p_app_info[APP_ID_CLOCK] = clockGetAppInfo();
+  p_app_info[APP_ID_TEST]  = testGetAppInfo();
+  // p_app_info[APP_ID_CALC]  = gameGetAppInfo();
+
+  app_cnt = APP_ID_MAX;
 
   lvglInit();
 
@@ -49,8 +67,20 @@ bool launcherInit(void)
 
   ret = threadCreate("ui", uiThread, NULL, _HW_DEF_THREAD_MODULE_PRI, _HW_DEF_THREAD_MODULE_STACK);
   assert(ret);
+  ret = threadCreate("ui_btn", btnThread, NULL, _HW_DEF_THREAD_MODULE_PRI, _HW_DEF_THREAD_MODULE_STACK);
+  assert(ret);
 
   logPrintf("[%s] uiThreadInit()\n", ret ? "OK":"E_");  
+  return true;
+}
+
+bool eventReceive(event_t *p_event)
+{
+  if (p_event->code == EVENT_UI_READY)
+  {
+    is_ready = true;
+  }
+
   return true;
 }
 
@@ -60,22 +90,40 @@ void launcherUpdate(void)
 
   if (is_req_run)
   {
-    logPrintf("app run : %s\n", p_app_info[req_run_id]->name);
-    is_req_run = false;
-    p_app_info[req_run_id]->init();
-    p_app_info[req_run_id]->run_func();
+    if (p_app_info[req_run_id] != NULL)
+    {
+      logPrintf("app run : %s\n", p_app_info[req_run_id]->name);
+      is_req_run = false;
+      p_app_info[req_run_id]->init();
+      p_app_info[req_run_id]->run_func();
 
-    uiInit();
+      uiInit();
+    }
   }
 }
 
 void uiThread(void const *arg)
 {
-  eventPub(EVENT_UI_HOME, 0);
+  is_req_run = true;
+  req_run_id = APP_ID_CLOCK;
 
   while(1)
   {
-    launcherUpdate();
+    if (is_ready)
+    {
+      launcherUpdate();
+    }
+    delay(5);
+  }
+}
+
+void btnThread(void const *arg)
+{
+  bool is_home = false;
+
+
+  while(1)
+  {    
     delay(5);
   }
 }

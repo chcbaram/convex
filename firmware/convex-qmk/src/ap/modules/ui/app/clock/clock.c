@@ -4,12 +4,18 @@
 static void appInit(void);
 static void appMain(void);
 static void uiInit(void);
+static bool eventReceive(event_t *p_event);
+
 
 static app_info_t app_info = {
-    .name = "CLOCK",
-    .init = appInit,
-    .run_func = appMain,
+  .name     = "CLOCK",
+  .init     = appInit,
+  .run_func = appMain
 };
+
+static bool is_exit = false;
+
+
 
 
 app_info_t *clockGetAppInfo(void)
@@ -20,17 +26,28 @@ app_info_t *clockGetAppInfo(void)
 void appInit(void)
 {
   uiInit();
+
+  eventSub(eventReceive);
 }
 
 void appMain(void)
 {
-  uint32_t pre_time = millis();
-
-  while(millis()-pre_time < 3000)
+  while(!is_exit)
   {
     lvglUpdate();
-    delay(1);    
+    delay(5);    
   }
+  is_exit = false;
+}
+
+bool eventReceive(event_t *p_event)
+{
+  if (p_event->code == EVENT_UI_HOME)
+  {
+    is_exit = true;
+  }
+
+  return true;
 }
 
 // 폰트 선언
@@ -109,7 +126,6 @@ static void fmt_time_12h_split(int hour24, int min,
 	snprintf(right, right_sz, "%02d", min);          // "05"
 }
 
-// 레이아웃 적용: left를 기준으로 colon/right를 이어붙임
 static void apply_layout(void)
 {
 	if (!root) return;
@@ -124,23 +140,59 @@ static void apply_layout(void)
 		lv_obj_align(date_label, layout.date_align, layout.date_ofs_x, layout.date_ofs_y);
 	}
 
-	// 시간 3분할
-	if (time_left_label && time_colon_label && time_right_label) {
-		// 1) left 기준 배치
-		lv_obj_align(time_left_label, layout.time_align, layout.time_ofs_x, layout.time_ofs_y);
+	// 시간(3분할)
+	if (time_left_label && time_colon_label && time_right_label && time_anchor) {
+		// 1) 앵커를 원하는 위치로 정렬
+		lv_obj_align(time_anchor, layout.time_align, layout.time_ofs_x, layout.time_ofs_y);
 
-		// 2) left의 위치/폭을 기준으로 colon/right를 가로로 이어 배치
+		// 2) 각 라벨 폭 업데이트
 		lv_obj_update_layout(time_left_label);
-		int left_x = lv_obj_get_x(time_left_label);
-		int left_y = lv_obj_get_y(time_left_label);
-		int left_w = lv_obj_get_width(time_left_label);
-
-		lv_obj_set_pos(time_colon_label, left_x + left_w + COLON_GAP_PX, left_y);
 		lv_obj_update_layout(time_colon_label);
-		int colon_x = lv_obj_get_x(time_colon_label);
-		int colon_w = lv_obj_get_width(time_colon_label);
+		lv_obj_update_layout(time_right_label);
 
-		lv_obj_set_pos(time_right_label, colon_x + colon_w + RIGHT_GAP_PX, left_y);
+		int w_left  = lv_obj_get_width(time_left_label);
+		int w_colon = lv_obj_get_width(time_colon_label);
+		int w_right = lv_obj_get_width(time_right_label);
+
+		int total_w = w_left + COLON_GAP_PX + w_colon + RIGHT_GAP_PX + w_right;
+
+		// 3) 앵커 좌표
+		int ax = lv_obj_get_x(time_anchor);
+		int ay = lv_obj_get_y(time_anchor);
+
+		// 4) 수평 기준을 앵커 align에 따라 결정
+		//    *_RIGHT 계열이면 우측 기준, *_MID/ CENTER 면 중앙, 나머지는 좌측 기준
+		int start_x = ax; // 좌측 기준 기본
+		switch (layout.time_align) {
+			case LV_ALIGN_TOP_RIGHT:
+			case LV_ALIGN_RIGHT_MID:
+			case LV_ALIGN_BOTTOM_RIGHT:
+				start_x = ax - total_w; // 오른쪽 기준
+				break;
+			case LV_ALIGN_TOP_MID:
+			case LV_ALIGN_CENTER:
+			case LV_ALIGN_BOTTOM_MID:
+				start_x = ax - (total_w / 2); // 중앙 기준
+				break;
+			default:
+				// LV_ALIGN_TOP_LEFT / LEFT_MID / BOTTOM_LEFT 등은 좌측 기준
+				start_x = ax;
+				break;
+		}
+
+		// 5) 같은 y로 배치. 세로 정렬이 필요하면 time_anchor의 y를 align에서 맞추는 방식으로 통일
+		int y = ay;
+
+		// left
+		lv_obj_set_pos(time_left_label, start_x, y);
+
+		// colon
+		int x_colon = start_x + w_left + COLON_GAP_PX;
+		lv_obj_set_pos(time_colon_label, x_colon, y);
+
+		// right
+		int x_right = x_colon + w_colon + RIGHT_GAP_PX;
+		lv_obj_set_pos(time_right_label, x_right, y);
 	}
 }
 
@@ -253,15 +305,15 @@ void uiInit(void)
 
   clock_layout_opts_t preset = {
     .date_align      = LV_ALIGN_TOP_LEFT,
-    .date_ofs_x      = 8,
-    .date_ofs_y      = 8,
+    .date_ofs_x      = 0,
+    .date_ofs_y      = 0,
     .time_align      = LV_ALIGN_RIGHT_MID,
     .time_ofs_x      = 0,
-    .time_ofs_y      = 16,
-    .root_pad_left   = 0,
-    .root_pad_top    = 0,
-    .root_pad_right  = 0,
-    .root_pad_bottom = 0,
+    .time_ofs_y      = 0,
+    .root_pad_left   = 10,
+    .root_pad_top    = 5,
+    .root_pad_right  = 10,
+    .root_pad_bottom = 5,
   };
   uiClockSetLayout(&preset);
 }

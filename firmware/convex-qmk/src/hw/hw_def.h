@@ -91,7 +91,7 @@
 
 #define _USE_HW_EVENT
 #define      HW_EVENT_Q_MAX         8
-#define      HW_EVENT_NODE_MAX      16 
+#define      HW_EVENT_NODE_MAX      64
 
 #define _USE_HW_FS
 #define      HW_FS_FLASH_OFFSET     0x90800000 
