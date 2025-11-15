@@ -1,12 +1,5 @@
-/*
- * nvs.h
- *
- *  Created on: 2022. 9. 17.
- *      Author: baram
- */
-
-#ifndef SRC_COMMON_HW_INCLUDE_NVS_H_
-#define SRC_COMMON_HW_INCLUDE_NVS_H_
+#ifndef NVS_H_
+#define NVS_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +10,13 @@ extern "C" {
 
 #ifdef _USE_HW_NVS
 
+typedef struct
+{
+  const char *p_name;
+  void       *p_data;
+  uint32_t    length;
+} nvs_cfg_t;
+
 
 bool nvsInit(void);
 bool nvsIsInit(void);
@@ -24,6 +24,9 @@ bool nvsIsInit(void);
 bool nvsIsExist(const char *p_name);
 bool nvsSet(const char *p_name, void *p_data, uint32_t length);
 bool nvsGet(const char *p_name, void *p_data, uint32_t length);
+bool nvsLen(const char *p_name, uint32_t *p_length);
+bool nvsSave(nvs_cfg_t *p_cfg);
+bool nvsLoad(nvs_cfg_t *p_cfg);
 
 #endif
 

@@ -20,6 +20,7 @@ void apInit(void)
 
   bootUp();
 
+  lcdInit();
   uf2Init();
   usbInit();
 
@@ -103,7 +104,7 @@ void lcdUpdate(void)
       lcdPrintf(0, 25, white, "%3d%%", info.percent);
       
       lcdDrawRect(0, 40, LCD_WIDTH, 24, white);
-      lcdDrawFillRect(5, 42, info.percent * (LCD_WIDTH - 10) / 100, 20, white);      
+      lcdDrawFillRect(3, 42, info.percent * (LCD_WIDTH - 6) / 100, 20, white);      
     }
 
     lcdRequestDraw();

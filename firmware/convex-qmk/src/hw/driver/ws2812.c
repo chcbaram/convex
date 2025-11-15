@@ -179,7 +179,7 @@ bool ws2812InitHw(void)
 
 bool ws2812ReqDMA(void)
 {
-  HAL_TIM_PWM_Start_DMA(ws2812.h_timer, ws2812.channel,  (const uint32_t *)bit_buf, sizeof(bit_buf)/sizeof(BIT_TYPE));
+  // HAL_TIM_PWM_Start_DMA(ws2812.h_timer, ws2812.channel,  (const uint32_t *)bit_buf, sizeof(bit_buf)/sizeof(BIT_TYPE));
   return true;
 }
 

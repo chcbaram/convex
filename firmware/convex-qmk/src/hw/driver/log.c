@@ -165,11 +165,20 @@ void logPrintf(const char *fmt, ...)
 
   va_list args;
   int len;
+  uint32_t isrm = 0;
 
 
   if (is_init != true) return;
 
-  lock();
+  if (xPortIsInsideInterrupt() == pdTRUE)
+  {    
+    isrm = taskENTER_CRITICAL_FROM_ISR();
+  }
+  else
+  {
+    lock();
+  }
+  
   va_start(args, fmt);
   len = vsnprintf(print_buf, 256, fmt, args);
 
@@ -186,7 +195,15 @@ void logPrintf(const char *fmt, ...)
 
   va_end(args);
 
-  unLock();
+  
+  if (xPortIsInsideInterrupt() == pdTRUE)
+  {
+    taskEXIT_CRITICAL_FROM_ISR(isrm);
+  }
+  else
+  {
+    unLock();
+  }
 }
 
 

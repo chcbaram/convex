@@ -102,6 +102,7 @@ bool eventPubFunc(const char *p_name, EventType_t event_type, EventCode_t event_
 {
   bool ret;
   event_t event_msg;
+  uint32_t isrm = 0;
 
   if (is_init != true)
     return false;
@@ -111,9 +112,23 @@ bool eventPubFunc(const char *p_name, EventType_t event_type, EventCode_t event_
   event_msg.data   = event_data;
   event_msg.p_name = p_name;
 
-  lock();
+  if (xPortIsInsideInterrupt() == pdTRUE)
+  {    
+    isrm = taskENTER_CRITICAL_FROM_ISR();
+  }
+  else
+  {
+    lock();
+  }
   ret = qbufferWrite(&event_q, (uint8_t *)&event_msg, 1);
-  unLock();
+  if (xPortIsInsideInterrupt() == pdTRUE)
+  {    
+    taskEXIT_CRITICAL_FROM_ISR(isrm);
+  }
+  else
+  {
+    unLock();
+  }
 
   return ret;
 }

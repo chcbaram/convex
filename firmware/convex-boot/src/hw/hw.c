@@ -47,8 +47,6 @@ bool hwInit(void)
   keysInit();
   ws2812Init();
   loaderInit();
- 
-  lcdInit();
 
   return true;
 }

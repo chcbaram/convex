@@ -16,6 +16,8 @@
 #define _USE_HW_YMODEM
 #define _USE_HW_LOADER
 #define _USE_HW_RTOS
+#define _USE_HW_QSPI
+#define _USE_HW_NVS
 
 #define _USE_HW_LED
 #define      HW_LED_MAX_CH          1
@@ -88,6 +90,13 @@
 #define      HW_EVENT_Q_MAX         8
 #define      HW_EVENT_NODE_MAX      16 
 
+#define _USE_HW_FS
+#define      HW_FS_FLASH_OFFSET     0x90800000 
+#define      HW_FS_MAX_SIZE         (8*1024*1024)
+
+#define _USE_HW_PWM
+#define      HW_PWM_MAX_CH          PWM_PIN_MAX
+
 #define _USE_HW_LCD
 #define      HW_LCD_LVGL            1
 #define      HW_LCD_LOGO            0
@@ -99,11 +108,11 @@
 #define FLASH_SIZE_TAG              0x400
 #define FLASH_SIZE_VEC              0x400
 #define FLASH_SIZE_VER              0x400
-#define FLASH_SIZE_FIRM             (512*1024)
+#define FLASH_SIZE_FIRM             (2*1024*1024 - 256*1024)
 
 #define FLASH_ADDR_BOOT             0x08000000
 #define FLASH_ADDR_FIRM             0x08040000
-#define FLASH_ADDR_UPDATE           0x08100000
+#define FLASH_ADDR_UPDATE           0x90000000
 
 
 
@@ -118,6 +127,7 @@
 #define _USE_CLI_HW_LOADER          1
 #define _USE_CLI_HW_WS2812          1
 #define _USE_CLI_HW_GPIO            1
+#define _USE_CLI_HW_QSPI            1
 
 
 //-- RTOS
@@ -145,5 +155,10 @@ typedef enum
   GPIO_PIN_MAX
 } GpioPinName_t;
 
+typedef enum
+{
+  LCD_BL_PWM,
+  PWM_PIN_MAX
+} PwmPinName_t;
 
 #endif

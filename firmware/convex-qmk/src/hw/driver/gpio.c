@@ -45,8 +45,8 @@ bool gpioInit(void)
 
   for (int i=0; i<GPIO_MAX_CH; i++)
   {
-    gpioPinMode(i, gpio_tbl[i].mode);
     gpioPinWrite(i, gpio_tbl[i].init_value);
+    gpioPinMode(i, gpio_tbl[i].mode);    
   }
 
 #ifdef _USE_HW_CLI

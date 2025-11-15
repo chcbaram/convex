@@ -35,7 +35,7 @@ file(GLOB SRC_FILES CONFIGURE_DEPENDS
   src/bsp/rtos/*.c
 
   src/ap/modules/*.c
-  src/ap/modules/cli/*.c
+  src/ap/modules/common/*.c
 
   src/lib/ST/STM32_USB_Device_Library/Core/Src/*.c
   
@@ -54,6 +54,7 @@ file(GLOB_RECURSE SRC_FILES_RECURSE CONFIGURE_DEPENDS
   src/common/*.c
   src/hw/*.c
   src/lib/ST/STM32H7xx_HAL_Driver/Src/*.c
+  src/lib/littlefs/*.c
 )
 
 # 특정 폴더를 빌드에서 제외한다.
@@ -115,6 +116,7 @@ target_compile_definitions(${EXECUTABLE} PRIVATE
   -DSTM32H743xx 
   -DUSE_HAL_DRIVER  
   -DFLASH_LINES_128B
+  -DLFS_THREADSAFE  
   )
 
 target_compile_options(${EXECUTABLE} PRIVATE
@@ -133,7 +135,7 @@ target_compile_options(${EXECUTABLE} PRIVATE
 
   -Wall
   -g3
-  -O3
+  -O2
   )
 
 target_link_options(${EXECUTABLE} PRIVATE

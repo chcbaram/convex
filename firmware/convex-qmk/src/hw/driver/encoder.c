@@ -47,7 +47,7 @@ bool encoderInit(void)
   ret = encoderInitGpio();
   
   is_init = ret;
-  logPrintf("[%s] encoderInit()\n", ret ? "OK" : "NG");
+  logPrintf("[%s] encoderInit()\n", ret ? "OK" : "E_");
 
 #ifdef _USE_HW_CLI
   cliAdd("encoder", cliEncoder);

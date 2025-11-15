@@ -23,14 +23,14 @@
 #endif
 
 
+#define LCD_FONT_RESIZE_WIDTH 64
 
-#define LCD_FONT_RESIZE_WIDTH  64
-
-#define MAKECOL(r, g, b) ( ((r)<<11) | ((g)<<5) | (b))
+#define MAKECOL(r, g, b)      (((r) << 11) | ((g) << 5) | (b))
 
 
-#define LCD_OPT_DEF            __attribute__((optimize("O2")))
-#define _PIN_DEF_BL_CTL        LCD_BL
+#define LCD_OPT_DEF           __attribute__((optimize("O2")))
+#define _PIN_DEF_BL_CTL       LCD_BL
+#define LCD_CFG_NAME          "cfg.lcd"
 
 typedef struct
 {
@@ -48,6 +48,7 @@ typedef struct
 static void disHanFont(int x, int y, han_font_t *FontPtr, uint16_t textcolor);
 static void disEngFont(int x, int y, char ch, lcd_font_t *font, uint16_t textcolor);
 static void lcdDrawLineBuffer(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color, lcd_pixel_t *line);
+static bool lcdInitCfg(void);
 static bool lcdLoadCfg(void);
 static bool lcdSaveCfg(void);
 
@@ -61,7 +62,6 @@ static lcd_driver_t lcd;
 
 static bool is_init = false;
 static volatile bool is_tx_done = true;
-static uint8_t backlight_value = 100;
 static uint8_t rotation_mode = 4;
 static uint8_t frame_index = 0;
 static LcdFont lcd_font = LCD_FONT_HAN;
@@ -89,6 +89,8 @@ static uint16_t __attribute__((aligned(64))) font_src_buffer[16 * 16];
 static uint16_t __attribute__((aligned(64))) font_dst_buffer[LCD_FONT_RESIZE_WIDTH * LCD_FONT_RESIZE_WIDTH];
 
 static lcd_font_t *font_tbl[LCD_FONT_MAX] = { &font_07x10, &font_11x18, &font_16x26, &font_hangul};
+static lcd_cfg_t cfg;
+static nvs_cfg_t nvs_cfg;
 static void (*draw_callback)(void) = NULL;
 
 #if HW_LCD_LOGO == 1
@@ -117,25 +119,23 @@ void transferDoneISR(void)
 
 bool lcdInit(void)
 {
-  backlight_value = 0;
-
-
   is_init = st7789Init();
   st7789InitDriver(&lcd);
 
-  delay(50);
+  lcdInitCfg();
   lcdLoadCfg();
-  lcdSetBackLight(backlight_value);
+  lcdSetBackLight(cfg.backlight_value);
   lcdSetRotation(rotation_mode);
 
   lcd.setCallBack(transferDoneISR);
 
   memset(frame_buffer[0], 0x00, LCD_WIDTH * LCD_HEIGHT * sizeof(uint16_t));
+  
 
   if (is_init == true)
     logPrintf("[OK] lcdInit()\n");
   else
-    logPrintf("[NG] lcdInit()\n");
+    logPrintf("[E_] lcdInit()\n");
 
   p_draw_frame_buf = frame_buffer[frame_index];
 
@@ -160,14 +160,34 @@ void lcdSetCallbackDraw(void (*func)(void))
   draw_callback = func;
 }
 
+bool lcdInitCfg(void)
+{
+  cfg.backlight_value = 100;
+  cfg.rotation_mode = 4;  
+
+  nvs_cfg.p_name = LCD_CFG_NAME;
+  nvs_cfg.p_data = &cfg;
+  nvs_cfg.length = sizeof(cfg);
+
+  return true;
+}
+
 bool lcdLoadCfg(void)
 {
-  return true;
+  bool ret = true;
+
+  ret = nvsLoad(&nvs_cfg);
+
+  return ret;
 }
 
 bool lcdSaveCfg(void)
 {
-  return true;
+  bool ret = true;
+
+  ret = nvsSave(&nvs_cfg);
+
+  return ret;
 }
 
 uint32_t lcdGetDrawTime(void)
@@ -187,24 +207,37 @@ void lcdReset(void)
 
 uint8_t lcdGetBackLight(void)
 {
-  return backlight_value;
+  return cfg.backlight_value;
+}
+
+static inline uint8_t brightness_to_pwm(uint8_t brightness, float gamma_val)
+{
+  if (brightness <= 0) return 0;
+  if (brightness >= 100) return 255;
+
+  float norm = (float)brightness / 100.0f;
+  int   pwm  = (int)lroundf(powf(norm, gamma_val) * 255.0f);
+  
+  if (pwm < 0) pwm = 0;
+  if (pwm > 255) pwm = 255;
+  return (uint8_t)pwm;
 }
 
 void lcdSetBackLight(uint8_t value)
 {
   value = constrain((int8_t)value, 0, 100);
 
-  if (value != backlight_value)
+  if (value != cfg.backlight_value)
   {
-    backlight_value = value;
+    cfg.backlight_value = value;
   }
 
   lcdSaveCfg();
 
 #ifdef _USE_HW_PWM
-  pwmWrite(0, cmap(value, 0, 100, 0, pwmGetMax(0)));
+  pwmWrite(LCD_BL_PWM,  brightness_to_pwm(value, 2.2f));
 #else
-  if (backlight_value > 0)
+  if (cfg.backlight_value > 0)
   {
     gpioPinWrite(_PIN_DEF_BL_CTL, _DEF_HIGH);
   }
@@ -1281,16 +1314,20 @@ void lcdLogoOn(void)
   x = (lcdGetWidth() - logo.w) / 2;
   y = (lcdGetHeight() - logo.h) / 2;
 
-  for (int i=0; i<32; i++)
-  {
     lcdClearBuffer(black);
-    lcdDrawImage(&logo, x, y + ((31-i)*3));
-
-    // lcdDrawRect(0, 0, LCD_WIDTH-0, LCD_HEIGHT-0, white);
-    // lcdDrawRect(1, 1, LCD_WIDTH-2, LCD_HEIGHT-2, white);
-
+    lcdDrawImage(&logo, x, y);
     lcdUpdateDraw();
-  }
+
+  // for (int i=0; i<32; i++)
+  // {
+  //   lcdClearBuffer(black);
+  //   lcdDrawImage(&logo, x, y + ((31-i)*3));
+
+  //   // lcdDrawRect(0, 0, LCD_WIDTH-0, LCD_HEIGHT-0, white);
+  //   // lcdDrawRect(1, 1, LCD_WIDTH-2, LCD_HEIGHT-2, white);
+
+  //   lcdUpdateDraw();
+  // }
 
   is_logo_on = true;
 }

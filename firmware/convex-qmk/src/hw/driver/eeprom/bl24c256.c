@@ -35,7 +35,7 @@ bool eepromInit()
     ret = eepromValid(0x00);
   }
 
-  logPrintf("[%s] eepromInit()\n", ret ? "OK":"NG");
+  logPrintf("[%s] eepromInit()\n", ret ? "OK":"E_");
   if (ret == true)
   {
     logPrintf("     chip  : BL24C256\n");

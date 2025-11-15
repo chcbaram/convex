@@ -44,7 +44,10 @@ bool hwInit(void)
   i2cInit();
   eepromInit();
   spiInit();
+  qspiInit();  
   flashInit();
+  fsInit();
+  nvsInit();    
   keysInit();
   #ifdef _USE_HW_WS2812
   ws2812Init();
@@ -65,6 +68,7 @@ bool hwInit(void)
   #endif
   loaderInit();
   
+  pwmInit();
   lcdInit();
 
   return true;

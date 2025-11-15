@@ -111,6 +111,11 @@ bool st7789Reset(void)
   st7789SetRotation(0); 
   st7789FillRect(0, 0, HW_LCD_WIDTH, HW_LCD_HEIGHT, black);
   
+  writecommand(ST7789_NORON);   //  3: Normal display on, no args, w/delay
+  delay(10);
+  writecommand(ST7789_DISPON);  //  4: Main screen turn on, no args w/delay
+  delay(100);
+
   return true;
 }
 
@@ -165,12 +170,6 @@ void st7789InitRegs(void)
   writedata(0x00);              //     YSTART = 0
   writedata((uint8_t)((HW_LCD_HEIGHT-1)>>8));
   writedata((uint8_t)((HW_LCD_HEIGHT-1)>>0));   //     YEND = 
-
-
-  writecommand(ST7789_NORON);   //  3: Normal display on, no args, w/delay
-  delay(10);
-  writecommand(ST7789_DISPON);  //  4: Main screen turn on, no args w/delay
-  delay(10);
 }
 
 void st7789SetRotation(uint8_t mode)

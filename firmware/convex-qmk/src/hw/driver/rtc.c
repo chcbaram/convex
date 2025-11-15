@@ -36,7 +36,7 @@ bool rtcInit(void)
     ret = false;
   }
 
-  logPrintf("[%s] rtcInit()\n", ret ? "OK":"NG");
+  logPrintf("[%s] rtcInit()\n", ret ? "OK":"E_");
   is_init = ret;
 
 #ifdef _USE_HW_CLI

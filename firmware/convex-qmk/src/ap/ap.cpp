@@ -15,8 +15,6 @@ void apInit(void)
   threadBegin();
   
   logBoot(false);
-
-  lcdSetBackLight(100);
 }
 
 void apMain(void)
@@ -24,7 +22,8 @@ void apMain(void)
   uint32_t pre_time;
   bool is_led_on = true;
 
-  
+
+
   pre_time = millis();
   while(1)
   {

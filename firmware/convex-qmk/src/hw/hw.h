@@ -20,6 +20,7 @@ extern "C" {
 #include "gpio.h"
 #include "keys.h"
 #include "spi.h"
+#include "qspi.h"
 #include "eeprom.h"
 #include "i2c.h"
 #include "flash.h"
@@ -33,6 +34,9 @@ extern "C" {
 #include "resize.h"
 #include "swtimer.h"
 #include "event.h"
+#include "fs.h"
+#include "nvs.h"
+#include "pwm.h"
 
 
 bool hwInit(void);
