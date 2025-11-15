@@ -37,7 +37,7 @@
         "stm32cubeprogrammer": "/opt/ST/STM32CubeCLT_1.16.0/STM32CubeProgrammer/bin",
         "svdFile": "/opt/ST/STM32CubeCLT_1.16.0/STMicroelectronics_CMSIS_SVD/STM32H743.svd"        
       },
-      "runToEntryPoint": "main",  
+      "runToEntryPoint": "main"
     },    
   ]
 }

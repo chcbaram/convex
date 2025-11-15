@@ -18,6 +18,9 @@
 #define _USE_HW_RTOS
 #define _USE_HW_QSPI
 #define _USE_HW_NVS
+#define _USE_HW_LVGL
+#define _USE_HW_CACHE
+
 
 #define _USE_HW_LED
 #define      HW_LED_MAX_CH          1
@@ -99,7 +102,7 @@
 
 #define _USE_HW_LCD
 #define      HW_LCD_LVGL            1
-#define      HW_LCD_LOGO            0
+#define      HW_LCD_LOGO            1
 #define _USE_HW_ST7789
 #define      HW_LCD_WIDTH           284
 #define      HW_LCD_HEIGHT          76

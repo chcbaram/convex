@@ -5,10 +5,9 @@
 
 
 
-
 static void bootUp(void);
 static void cliUpdate(void);
-static void lcdUpdate(void);
+
 
 
 void apInit(void)
@@ -51,7 +50,7 @@ void apMain(void)
     cliUpdate();
     usbUpdate();
     uf2Update();
-    lcdUpdate();
+    lcdUpdate(false);
   }
 }
 
@@ -61,15 +60,19 @@ void cliLoopIdle(void)
   uf2Update();
 }
 
-void lcdUpdate(void)
+void lcdUpdate(bool req)
 {
   static uint32_t pre_time = 0;
 
 
-  if (lcdDrawAvailable() && millis()-pre_time >= 100)
+  if (req || (lcdDrawAvailable() && millis()-pre_time >= 100))
   {
     pre_time = millis();
 
+    if (req)
+    {
+      lcdUpdateDraw();
+    }
     lcdClearBuffer(black);  
 
 
@@ -95,16 +98,25 @@ void lcdUpdate(void)
       lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 32, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
                     "BARAM-BOOT");
     }
+    else if (info.state == 1)
+    {
+      lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
+      lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                    "Copy..");
+
+      lcdPrintf(0, 25, white, "%3d%%", info.percent);
+      
+      lcdDrawRect(0, 40, LCD_WIDTH, 24, white);
+      lcdDrawFillRect(3, 42, info.percent * (LCD_WIDTH - 6) / 100, 20, white);      
+    }
     else
     {
       lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
       lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
                     "Update..");
 
-      lcdPrintf(0, 25, white, "%3d%%", info.percent);
-      
-      lcdDrawRect(0, 40, LCD_WIDTH, 24, white);
-      lcdDrawFillRect(3, 42, info.percent * (LCD_WIDTH - 6) / 100, 20, white);      
+      lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                    "UPDATE FLASH");    
     }
 
     lcdRequestDraw();
@@ -177,6 +189,7 @@ void bootUp(void)
       logPrintf("[E_] err : 0x%04X\n", err_code);
       if (bootVerifyUpdate() == OK)
       {
+        delay(500);
         logPrintf("[  ] retry update\n");
         if (bootUpdateFirm() == OK)
         {

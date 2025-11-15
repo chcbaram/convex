@@ -50,16 +50,19 @@ file(GLOB SRC_FILES CONFIGURE_DEPENDS
 # 하위폴더에 있는 파일까지 포함한다.
 #
 file(GLOB_RECURSE SRC_FILES_RECURSE CONFIGURE_DEPENDS
+  src/ap/modules/ui/*.c
   src/bsp/*.s
   src/common/*.c
   src/hw/*.c
   src/lib/ST/STM32H7xx_HAL_Driver/Src/*.c
   src/lib/littlefs/*.c
+  src/lib/lvgl/*.c
 )
 
 # 특정 폴더를 빌드에서 제외한다.
 #
 set(EXCLUDE_PATHS 
+  src/lib/lvgl/src/drivers
 )
 
 foreach(TMP_PATH ${SRC_FILES_RECURSE}) 
@@ -84,6 +87,7 @@ target_include_directories(${EXECUTABLE} PRIVATE
   src  
   src/ap
   src/ap/modules
+  src/ap/modules/ui
   src/bsp
   src/bsp/device
   src/bsp/rtos  

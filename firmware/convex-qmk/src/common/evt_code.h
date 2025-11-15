@@ -6,6 +6,8 @@
 typedef enum
 {
   EVENT_OK,
+
+  EVENT_UI_HOME,
   EVENT_MAX,  
 } EventCode_t;
 

@@ -22,4 +22,6 @@ enum {
 };
 
 
+void lcdUpdate(bool req);
+
 #endif

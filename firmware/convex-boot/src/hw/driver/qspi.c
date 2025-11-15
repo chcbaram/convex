@@ -243,7 +243,8 @@ bool qspiErase(uint32_t addr, uint32_t length)
 
 
   flash_length = W25Q128FV_FLASH_SIZE;
-  block_size   = W25Q128FV_SECTOR_SIZE;
+  // block_size   = W25Q128FV_SECTOR_SIZE;
+  block_size   = W25Q128FV_SUBSECTOR_SIZE;
 
 
   if ((addr > flash_length) || ((addr+length) > flash_length))
@@ -262,7 +263,8 @@ bool qspiErase(uint32_t addr, uint32_t length)
 
   for (i=block_begin; i<=block_end; i++)
   {
-    ret = qspiEraseSector(block_size*i);
+    // ret = qspiEraseSector(block_size*i);
+    ret = qspiEraseBlock(block_size*i);
     if (ret == false)
     {
       break;

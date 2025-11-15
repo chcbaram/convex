@@ -37,6 +37,7 @@ extern "C" {
 #include "fs.h"
 #include "nvs.h"
 #include "pwm.h"
+#include "lvgl.h"
 
 
 bool hwInit(void);

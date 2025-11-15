@@ -40,6 +40,7 @@ bool hwInit(void)
   rtcInit();
   resetInit();
   swtimerInit();
+  eventInit();
   gpioInit();
   i2cInit();
   eepromInit();

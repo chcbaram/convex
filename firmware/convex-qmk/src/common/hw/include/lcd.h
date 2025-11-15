@@ -18,6 +18,7 @@ extern "C" {
 
 #if HW_LCD_LVGL == 1
 #include "lvgl/lvgl.h"
+#define lvgl_img_t lv_image_dsc_t
 #endif
 
 
@@ -114,7 +115,7 @@ typedef struct lcd_driver_t_
 } lcd_driver_t;
 
 
-#if HW_LCD_LVGL == 1
+#ifdef HW_LCD_LVGL
 
 #ifdef __cplusplus
 #define LVGL_IMG_DEF(var_name) extern "C" lvgl_img_t var_name;
@@ -122,14 +123,40 @@ typedef struct lcd_driver_t_
 #define LVGL_IMG_DEF(var_name) extern lvgl_img_t var_name;
 #endif
 
+
 typedef struct
 {
   const lvgl_img_t *p_img;
+  uint16_t color_tbl[256];
   int16_t x;
   int16_t y;
   int16_t w;
   int16_t h;
 } image_t;
+
+typedef struct
+{
+  const lvgl_img_t *p_img;
+  int16_t  x;
+  int16_t  y;
+  int16_t  w;
+  int16_t  h;
+  int16_t  stride_x;
+  int16_t  stride_y;
+  int16_t  cnt;
+  uint32_t delay_ms;
+} sprite_param_t;
+
+typedef struct
+{
+  image_t image;
+  sprite_param_t param;
+
+  uint32_t pre_time;
+  int16_t  cur_index;
+  bool     is_init;
+} sprite_t;
+
 #endif
 
 
@@ -139,6 +166,8 @@ void lcdReset(void);
 
 uint8_t lcdGetBackLight(void);
 void    lcdSetBackLight(uint8_t value);
+void    lcdDisplayOnDimming(uint32_t dim_ms);
+void    lcdDisplayOffDimming(uint32_t dim_ms);
 
 uint32_t lcdReadPixel(uint16_t x_pos, uint16_t y_pos);
 void lcdClear(uint32_t rgb_code);
@@ -191,6 +220,12 @@ uint32_t lcdGetStrWidth(const char *fmt, ...);
 #if HW_LCD_LVGL == 1
 image_t lcdCreateImage(lvgl_img_t *p_lvgl_img, int16_t x, int16_t y, int16_t w, int16_t h);
 void lcdDrawImage(image_t *p_img, int16_t x, int16_t y);
+void lcdDrawImageOffset(image_t *p_img, int16_t offset_x, int16_t offset_y, int16_t draw_x, int16_t draw_y);
+
+bool lcdSpriteCreate(sprite_t *p_sprite);
+void lcdSpriteDraw(sprite_t *p_sprite, int16_t x, int16_t y, uint16_t index);
+void lcdSpriteDrawWrap(sprite_t *p_sprite, int16_t x, int16_t y, bool reset);
+
 void lcdLogoOn(void);
 void lcdLogoOff(void);
 bool lcdLogoIsOn(void);

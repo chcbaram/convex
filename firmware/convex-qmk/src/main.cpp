@@ -2,7 +2,6 @@
 
 
 
-
 static void mainThread(void const *arg);
 
 

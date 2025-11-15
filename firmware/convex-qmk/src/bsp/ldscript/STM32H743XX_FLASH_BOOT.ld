@@ -70,7 +70,7 @@ MEMORY
 
   VECTOR (rx)       : ORIGIN = 0x08040400, LENGTH = 1K
   VER    (rx)       : ORIGIN = 0x08040800, LENGTH = 1K
-  FLASH (rx)        : ORIGIN = 0x08040C00, LENGTH = 512K - 3K
+  FLASH (rx)        : ORIGIN = 0x08040C00, LENGTH = 1024K - 3K
 }
 
 /* Define output sections */
@@ -224,14 +224,14 @@ SECTIONS
     *(.non_cache)
     *(.non_cache*)   
     . = ALIGN(4);       
-  } >RAM_D3 AT> FLASH   
+  } >RAM_D2 AT> FLASH   
   
   .noinit(NOLOAD) :
   {
     . = ALIGN(4);
     KEEP(*(.noinit))
     . = ALIGN(4);
-  } >RAM_D3
+  } >RAM_D2
   
   .fw_flash_end :
   {

@@ -43,9 +43,15 @@ static uf2_info_t uf2_info;
 
 
 
+
+
 bool uf2_flash_is_blank(uint32_t addr, uint32_t size)
 {
   uint32_t data;
+  uint32_t sector_size = 0x1000;
+
+
+  size = sector_size - (addr % sector_size);
 
   for ( uint32_t i = 0; i < size; i += sizeof(uint32_t) )
   {
@@ -112,6 +118,9 @@ void uf2_flash_complete(WriteState *state)
   if (is_jump_fw)
     return;
     
+  uf2_info.state = 2;
+  lcdUpdate(true);
+
   err_code = bootUpdateFirm();
   logPrintf("[%s] bootUpdateFirm()\n", err_code==OK?"OK":"E_");
   if (err_code == OK)
@@ -190,8 +199,11 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
   (void)block_no;
   UF2_Block *bl = (void *)data;
 
+  
+
   if (!is_uf2_block(bl))
     return -1;
+
 
   if (bl->familyID == BOARD_UF2_FAMILY_ID)
   {
@@ -240,7 +252,8 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
       // TODO numWritten can be smaller than numBlocks if return early
       if (state->numWritten >= state->numBlocks)
       {
-        uf2_flash_flush(state);
+        uf2_flash_flush(state);              
+        lcdUpdate(true);
       }
     }
 
