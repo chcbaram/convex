@@ -6,7 +6,7 @@
 #include "bsp.h"
 #include <time.h>
 
-#define _DEF_FIRMWATRE_VERSION    "V251005R1"
+#define _DEF_FIRMWATRE_VERSION    "V251116R1"
 #define _DEF_BOARD_NAME           "CONVEX-BOOT"
 
 
