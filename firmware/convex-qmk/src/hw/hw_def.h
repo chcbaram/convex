@@ -7,7 +7,7 @@
 #include QMK_KEYMAP_CONFIG_H
 
 
-#define _DEF_FIRMWATRE_VERSION    "V251108R1"
+#define _DEF_FIRMWATRE_VERSION    "V251116R1"
 #define _DEF_BOARD_NAME           "CONVEX-QMK-FW"
 
 
