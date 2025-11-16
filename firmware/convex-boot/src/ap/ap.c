@@ -50,7 +50,7 @@ void apMain(void)
     cliUpdate();
     usbUpdate();
     uf2Update();
-    lcdUpdate(false);
+    lcdUpdate(false, NULL);
   }
 }
 
@@ -60,7 +60,7 @@ void cliLoopIdle(void)
   uf2Update();
 }
 
-void lcdUpdate(bool req)
+void lcdUpdate(bool req, lcd_req_info_t *p_req_info)
 {
   static uint32_t pre_time = 0;
 
@@ -73,7 +73,7 @@ void lcdUpdate(bool req)
     {
       lcdUpdateDraw();
     }
-    lcdClearBuffer(black);  
+    
 
 
     rtc_time_t rtc_time;
@@ -89,6 +89,8 @@ void lcdUpdate(bool req)
     
     if (info.state == 0)
     {
+      lcdClearBuffer(black);  
+
       lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
       lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
                     "%02d-%d-%02d %s  %02d:%02d:%02d", 
@@ -97,29 +99,32 @@ void lcdUpdate(bool req)
                   );
       lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 32, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
                     "BARAM-BOOT");
+
+      lcdRequestDraw();                    
     }
-    else if (info.state == 1)
+    else if (p_req_info != NULL)
     {
+      lcdClearBuffer(black);  
+
       lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
       lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
-                    "Copy..");
+                    p_req_info->title_str);
 
-      lcdPrintf(0, 25, white, "%3d%%", info.percent);
-      
-      lcdDrawRect(0, 40, LCD_WIDTH, 24, white);
-      lcdDrawFillRect(3, 42, info.percent * (LCD_WIDTH - 6) / 100, 20, white);      
-    }
-    else
-    {
-      lcdDrawFillRect(0, 0, LCD_WIDTH, 20, green);
-      lcdPrintfRect(0, 0, LCD_WIDTH, 20, black, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
-                    "Update..");
+      if (p_req_info->mode == LCD_INFO_MODE_PROGRESS)
+      {
+        lcdPrintf(0, 25, white, "%3d%%", p_req_info->percent);
+        
+        lcdDrawRect(0, 40, LCD_WIDTH, 24, white);
+        lcdDrawFillRect(3, 42, p_req_info->percent * (LCD_WIDTH - 6) / 100, 20, white);      
+      }
+      else
+      {
+        lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
+                      p_req_info->info_str);    
+      }
 
-      lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
-                    "UPDATE FLASH");    
-    }
-
-    lcdRequestDraw();
+      lcdRequestDraw();
+    }    
   }
 }
 

@@ -16,14 +16,17 @@ static void qmkUpdate(void);
 static void qmkThread(void const *arg);
 static void cliQmk(cli_args_t *args);
 static void idle_task(void);
+static bool eventReceive(event_t *p_event);
 
 static bool is_suspended = false;
+static bool is_enable = true;
 
 MODULE_DEF(qmk) 
 {
   .name = "qmk",
   .priority = MODULE_PRI_LOW,
-  .init = qmkInit
+  .init = qmkInit,
+  .event_cb = eventReceive,  
 };
 
 
@@ -73,9 +76,21 @@ void qmkUnLock(void)
 
 void qmkUpdate(void)
 {
-  keyboard_task();
+  if (is_enable)
+  {
+    keyboard_task();
+  }
   eeprom_task();
   idle_task();
+}
+
+bool eventReceive(event_t *p_event)
+{
+  if (p_event->code == EVENT_QMK_ENABLE)
+  {
+    is_enable = p_event->data;
+  }
+  return true;
 }
 
 void keyboard_post_init_user(void)

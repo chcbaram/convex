@@ -7,8 +7,9 @@ typedef enum
 {
   EVENT_OK,
 
-  EVENT_UI_HOME,
   EVENT_UI_READY,
+  EVENT_UI_APP_EXIT,
+  EVENT_QMK_ENABLE,
   EVENT_MAX,  
 } EventCode_t;
 

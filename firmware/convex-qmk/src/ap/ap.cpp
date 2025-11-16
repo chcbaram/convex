@@ -22,7 +22,9 @@ void apMain(void)
   lcdLogoOn();
   lcdDisplayOnDimming(1000);
   delay(1000);
+  
   lcdClear(black);
+  delay(100);
 
   eventPub(EVENT_UI_READY, 1);
 

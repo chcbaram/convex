@@ -119,7 +119,6 @@ void uf2_flash_complete(WriteState *state)
     return;
     
   uf2_info.state = 2;
-  lcdUpdate(true);
 
   err_code = bootUpdateFirm();
   logPrintf("[%s] bootUpdateFirm()\n", err_code==OK?"OK":"E_");
@@ -161,8 +160,7 @@ void uf2Update(void)
   {
     case 0:
       if (is_jump_fw)
-      {
-        is_jump_fw = false;
+      {        
         pre_time = millis();
         state = 1;
       }
@@ -171,6 +169,7 @@ void uf2Update(void)
     case 1:
       if (millis()-pre_time >= 300)
       {
+        is_jump_fw = false;        
         bootJumpFirm();  
         state = 0;
       }
@@ -253,11 +252,18 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
       if (state->numWritten >= state->numBlocks)
       {
         uf2_flash_flush(state);              
-        lcdUpdate(true);
       }
     }
 
     uf2_info.percent = (state->numWritten * 100)/state->numBlocks;
+
+    lcd_req_info_t info;    
+    info.mode = LCD_INFO_MODE_PROGRESS;
+    info.title_str = "Copy...";
+    info.percent = uf2_info.percent; 
+    lcdUpdate(false, &info);
+    
+    
   }
 
   return BPB_SECTOR_SIZE;

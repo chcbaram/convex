@@ -3,6 +3,7 @@
 
 static void appInit(void);
 static void appMain(void);
+static bool eventReceive(event_t *p_event);
 
 static app_info_t app_info = {
     .name = "게임",
@@ -14,15 +15,12 @@ LVGL_IMG_DEF(fighter);
 LVGL_IMG_DEF(bullet);
 LVGL_IMG_DEF(bomb);
 
+static bool is_exit = false;
 
-app_info_t *gameGetAppInfo(void)
-{
-  return &app_info;
-}
 
 void appInit(void)
 {
-
+  eventSub(eventReceive);
 }
 
 void appMain(void)
@@ -62,7 +60,7 @@ void appMain(void)
 
 
   pre_time_buzzer = millis();
-  while(1)
+  while(!is_exit)
   {
     // if (buttonGetPressed(0))
     // {
@@ -104,4 +102,21 @@ void appMain(void)
       lcdRequestDraw();
     }
   }
+
+  is_exit = false;  
+}
+
+app_info_t *gameGetAppInfo(void)
+{
+  return &app_info;
+}
+
+bool eventReceive(event_t *p_event)
+{
+  if (p_event->code == EVENT_UI_APP_EXIT)
+  {
+    is_exit = true;
+  }
+
+  return true;
 }

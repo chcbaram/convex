@@ -154,16 +154,37 @@ uint16_t bootUpdateFirm(void)
 {
   uint8_t err_code = OK;
   firm_tag_t tag;
+  uint8_t percent = 0;
+  lcd_req_info_t lcd_info;
 
 
+  
   while(1)
   {
     firm_tag_t *p_tag = (firm_tag_t *)&tag;
+
+
+    err_code = bootVerifyUpdate();
+    if (err_code != OK)
+    {
+      err_code = ERR_BOOT_UPDATE_CRC;
+
+      lcd_info.mode = LCD_INFO_MODE_ERROR;
+      lcd_info.title_str = "ERROR";
+      lcd_info.info_str = "ERR_BOOT_UPDATE_CRC";
+      lcdUpdate(true, &lcd_info);
+      break;
+    }
 
     // Read Tag
     //
     flashRead(FLASH_ADDR_UPDATE, (uint8_t *)p_tag, sizeof(firm_tag_t));
 
+
+    lcd_info.mode = LCD_INFO_MODE_PROGRESS;
+    lcd_info.title_str = "Erase...";
+    lcd_info.percent = percent;
+    lcdUpdate(true, &lcd_info);
 
     // Erase F/W
     //
@@ -206,7 +227,16 @@ uint16_t bootUpdateFirm(void)
       }
 
       index += wr_size;
+
+      percent = index * 100 / fw_size;
+
+      lcd_info.mode = LCD_INFO_MODE_PROGRESS;
+      lcd_info.title_str = "Write...";
+      lcd_info.percent = percent;
+      lcdUpdate(false, &lcd_info);
     }
+    lcd_info.percent = percent;
+    lcdUpdate(true, &lcd_info);
 
     if (err_code == OK)
     {
@@ -214,6 +244,26 @@ uint16_t bootUpdateFirm(void)
       //
       err_code = bootVerifyFirm();
     }
+
+    if (err_code == OK)
+    {
+      lcd_info.mode = LCD_INFO_MODE_INFO;
+      lcd_info.title_str = "Finish...";
+      lcd_info.info_str = "UPDATE DONE";
+      lcdUpdate(true, &lcd_info);
+    }
+    else
+    {
+      char buf[128];
+
+      snprintf(buf, sizeof(buf), "0x%04X", err_code);
+
+      lcd_info.mode = LCD_INFO_MODE_ERROR;
+      lcd_info.title_str = "ERROR";
+      lcd_info.info_str = buf;
+      lcdUpdate(true, &lcd_info);
+    }
+
     break;
   }
 

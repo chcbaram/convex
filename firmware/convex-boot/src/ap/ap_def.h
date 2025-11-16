@@ -22,6 +22,23 @@ enum {
 };
 
 
-void lcdUpdate(bool req);
+typedef enum 
+{
+  LCD_INFO_MODE_PROGRESS,
+  LCD_INFO_MODE_INFO,
+  LCD_INFO_MODE_ERROR,
+} LcdInfoMode_t;
+
+typedef struct
+{
+  LcdInfoMode_t mode;
+  const char   *title_str;
+  const char   *info_str;
+  uint8_t       percent;
+  uint16_t      err_code;
+} lcd_req_info_t;
+
+
+void lcdUpdate(bool req, lcd_req_info_t *p_req_info);
 
 #endif

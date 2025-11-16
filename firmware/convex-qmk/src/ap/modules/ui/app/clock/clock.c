@@ -5,7 +5,7 @@ static void appInit(void);
 static void appMain(void);
 static void uiInit(void);
 static bool eventReceive(event_t *p_event);
-
+static void ui_clock_destroy(void);
 
 static app_info_t app_info = {
   .name     = "CLOCK",
@@ -18,16 +18,19 @@ static bool is_exit = false;
 
 
 
-app_info_t *clockGetAppInfo(void)
-{
-  return &app_info;
-}
-
 void appInit(void)
 {
+  static bool is_first = true;
+  
   uiInit();
 
-  eventSub(eventReceive);
+  is_exit = false;
+
+  if (is_first)
+  {
+    is_first = false;
+    eventSub(eventReceive);
+  }
 }
 
 void appMain(void)
@@ -38,11 +41,18 @@ void appMain(void)
     delay(5);    
   }
   is_exit = false;
+
+  ui_clock_destroy();
+}
+
+app_info_t *clockGetAppInfo(void)
+{
+  return &app_info;
 }
 
 bool eventReceive(event_t *p_event)
 {
-  if (p_event->code == EVENT_UI_HOME)
+  if (p_event->code == EVENT_UI_APP_EXIT)
   {
     is_exit = true;
   }

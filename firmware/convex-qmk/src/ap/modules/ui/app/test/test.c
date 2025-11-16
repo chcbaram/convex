@@ -4,7 +4,7 @@
 static void appInit(void);
 static void appMain(void);
 static void lcdUpdate(void);
-
+static bool eventReceive(event_t *p_event);
 
 static app_info_t app_info = {
     .name = "KEY TEST",
@@ -12,24 +12,53 @@ static app_info_t app_info = {
     .run_func = appMain,
 };
 
+static bool is_exit = false;
 
-app_info_t *testGetAppInfo(void)
-{
-  return &app_info;
-}
+
 
 void appInit(void)
 {
-  
+  static bool is_first = true;  
+
+  is_exit = false;
+
+  if (is_first)
+  {
+    is_first = false;
+    eventSub(eventReceive);
+  }  
 }
 
 void appMain(void)
 {
-  while(1)
+  eventPub(EVENT_QMK_ENABLE, 0);
+  delay(100);
+
+  while(!is_exit)
   {
+    keysUpdate();
     lcdUpdate();
     delay(1);    
   }
+  is_exit = false;
+
+  delay(100);
+  eventPub(EVENT_QMK_ENABLE, 1);
+}
+
+bool eventReceive(event_t *p_event)
+{
+  if (p_event->code == EVENT_UI_APP_EXIT)
+  {
+    is_exit = true;
+  }
+
+  return true;
+}
+
+app_info_t *testGetAppInfo(void)
+{
+  return &app_info;
 }
 
 void lcdUpdate(void)
