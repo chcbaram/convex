@@ -108,17 +108,17 @@ void via_qmk_set_value(uint8_t *data)
   {
     case id_qmk_rtc_date_yy:
       {
-        rtc_info.date.year = value_data[0];
+        rtc_info.date.year = value_data[0] + 24;
         break;
       }    
     case id_qmk_rtc_date_mm:
       {
-        rtc_info.date.month = value_data[0];
+        rtc_info.date.month = value_data[0] + 1;
         break;
       }         
     case id_qmk_rtc_date_dd:
       {
-        rtc_info.date.day = value_data[0];
+        rtc_info.date.day = value_data[0] + 1;
         break;
       }
     case id_qmk_rtc_time_hh:
