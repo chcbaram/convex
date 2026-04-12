@@ -1,4 +1,4 @@
-#include "app/calc/calc.h"
+#include "calc.h"
 #include "quantum.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,11 +20,11 @@ LV_FONT_DECLARE(convex16);
 // --- 계산기 상태 관리 ---
 typedef struct
 {
-  char   current_str[32]; // 현재 입력 문자열
-  char   history_str[64]; // 상단 수식 문자열
-  double result;          // 중간 계산 결과
-  char   last_op;         // 마지막 연산자 (+, -, *, /)
-  bool   is_new_input;    // 새 숫자를 입력할 차례인지 여부
+  char   current_str[64];  // 현재 입력 문자열
+  char   history_str[128]; // 상단 수식 문자열
+  double result;           // 중간 계산 결과
+  char   last_op;          // 마지막 연산자 (+, -, *, /)
+  bool   is_new_input;     // 새 숫자를 입력할 차례인지 여부
 } calc_state_t;
 
 static calc_state_t state;
@@ -49,39 +49,52 @@ static void reset_calc()
   state.is_new_input = true;
 }
 
+static void format_commas(const char *src, char *dest, size_t dest_size)
+{
+  int len     = strlen(src);
+  int dot_pos = strchr(src, '.') ? (strchr(src, '.') - src) : len; // 소수점 위치 확인
+  int j       = 0;
+
+  for (int i = 0; i < len; i++)
+  {
+    // 1. 소수점 이전이며, 3자리마다 콤마 삽입 (단, 시작 지점은 제외)
+    if (i < dot_pos && i > 0 && (dot_pos - i) % 3 == 0 && src[i - 1] != '-')
+    {
+      dest[j++] = ',';
+    }
+    dest[j++] = src[i];
+
+    // 버퍼 오버플로우 방지
+    if (j >= dest_size - 1) break;
+  }
+  dest[j] = '\0';
+}
+
 static void update_ui_labels()
 {
   if (!label_main || !label_history) return;
 
+  char display_buf[64];                       // 콤마가 포함된 문자열을 담을 임시 버퍼
+  format_commas(state.current_str, display_buf, sizeof(display_buf));
+
   lv_label_set_text(label_history, state.history_str);
-  lv_label_set_text(label_main, state.current_str);
+  lv_label_set_text(label_main, display_buf); // 콤마 처리된 텍스트 설정
 
-  // --- 폰트 자동 크기 조절 로직 ---
+  // --- 폰트 자동 크기 조절 (display_buf 기준) ---
   const lv_font_t *font_sizes[] = {&convex32, &convex24, &convex20, &convex16};
-  const uint8_t    num_fonts    = 4;
   uint8_t          font_idx     = 0;
+  lv_point_t       size;
+  int32_t          max_width = 265;
 
-  lv_point_t size;
-  int32_t    max_width = 265; // 라벨 설정 너비(270)보다 약간 작게 설정 (여유분)
-
-  // 가장 큰 폰트부터 시작해서 너비가 초과하는지 검사
-  for (font_idx = 0; font_idx < num_fonts; font_idx++)
+  for (font_idx = 0; font_idx < 4; font_idx++)
   {
-    // 해당 폰트로 텍스트 너비 계산
-    lv_txt_get_size(&size, state.current_str, font_sizes[font_idx],
+    // 실제 콤마가 포함된 문자열의 길이를 측정합니다.
+    lv_txt_get_size(&size, display_buf, font_sizes[font_idx],
                     0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-
-    // 계산된 너비가 max_width보다 작으면 해당 폰트 확정
-    if (size.x <= max_width)
-    {
-      break;
-    }
+    if (size.x <= max_width) break;
   }
+  if (font_idx >= 4) font_idx = 3;
 
-  // 만약 모든 폰트가 너비를 초과한다면 가장 작은 폰트(마지막 인덱스) 사용
-  if (font_idx >= num_fonts) font_idx = num_fonts - 1;
-
-  // 결정된 폰트 적용
   lv_obj_set_style_text_font(label_main, font_sizes[font_idx], 0);
 }
 
@@ -95,7 +108,7 @@ static void perform_operation(double current_val)
     case '-':
       state.result -= current_val;
       break;
-    case '*':
+    case 'x':
       state.result *= current_val;
       break;
     case '/':
@@ -115,6 +128,10 @@ void calc_input_char(char c)
     // 숫자 입력 로직 (기존과 동일)
     if (state.is_new_input || strcmp(state.current_str, "0") == 0)
     {
+      if (state.is_new_input && state.history_str[0] == '=')
+      {
+        state.history_str[0] = '\0';
+      }
       snprintf(state.current_str, sizeof(state.current_str), "%c", c);
       state.is_new_input = false;
     }
@@ -139,13 +156,21 @@ void calc_input_char(char c)
       }
     }
   }
-  else if (c == '+' || c == '-' || c == '*' || c == '/')
+  else if (c == '+' || c == '-' || c == 'x' || c == '/')
   {
     double val = atof(state.current_str);
     perform_operation(val);
     state.last_op = c;
-    // 연산자를 누르면 상단에 중간 결과와 연산자 표시 (예: "123 +")
-    snprintf(state.history_str, sizeof(state.history_str), "%.10g %c", state.result, c);
+
+    // --- 히스토리에 콤마 적용 ---
+    char temp_num[32];
+    char comma_num[64];
+    snprintf(temp_num, sizeof(temp_num), "%.10g", state.result); // 현재까지 결과값
+    format_commas(temp_num, comma_num, sizeof(comma_num));       // 콤마 추가
+
+    // "1,234 +" 형태로 히스토리 저장
+    snprintf(state.history_str, sizeof(state.history_str), "%s %c", comma_num, c);
+
     state.is_new_input = true;
   }
   else if (c == '=')
@@ -157,7 +182,9 @@ void calc_input_char(char c)
     snprintf(state.current_str, sizeof(state.current_str), "%.10g", state.result);
 
     // 히스토리는 비워서 결과만 강조
-    state.history_str[0] = '\0';
+    // state.history_str[0] = '\0';
+    snprintf(state.history_str, sizeof(state.history_str), "%c", c);
+
     state.last_op        = 0;
     state.is_new_input   = true;
   }
@@ -261,7 +288,7 @@ bool calcSetKeycode(uint16_t keycode)
       break;
 
     case KC_KP_ASTERISK:
-      key_data = '*';
+      key_data = 'x';
       break;
 
     case KC_KP_ENTER:
