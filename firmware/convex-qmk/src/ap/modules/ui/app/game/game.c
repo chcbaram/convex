@@ -2,28 +2,26 @@
 
 
 static void appInit(void);
-static void appMain(void);
-static bool eventReceive(event_t *p_event);
+static void appMain(app_args_t *p_args);
 
 static app_info_t app_info = {
-    .name = "게임",
-    .init = appInit,
-    .run_func = appMain,
+  .id       = APP_ID_CALC,
+  .name     = "게임",
+  .init     = appInit,
+  .run_func = appMain,
 };
 
 LVGL_IMG_DEF(fighter);
 LVGL_IMG_DEF(bullet);
 LVGL_IMG_DEF(bomb);
 
-static bool is_exit = false;
 
 
 void appInit(void)
 {
-  eventSub(eventReceive);
 }
 
-void appMain(void)
+void appMain(app_args_t *p_args)
 {
   typedef struct
   {
@@ -60,13 +58,8 @@ void appMain(void)
 
 
   pre_time_buzzer = millis();
-  while(!is_exit)
+  while(!p_args->is_exit)
   {
-    // if (buttonGetPressed(0))
-    // {
-    //   break;
-    // }
-
     if (lcdDrawAvailable())
     {
       lcdClearBuffer(black);
@@ -102,21 +95,10 @@ void appMain(void)
       lcdRequestDraw();
     }
   }
-
-  is_exit = false;  
+  p_args->is_exit = false;  
 }
 
 app_info_t *gameGetAppInfo(void)
 {
   return &app_info;
-}
-
-bool eventReceive(event_t *p_event)
-{
-  if (p_event->code == EVENT_UI_APP_EXIT)
-  {
-    is_exit = true;
-  }
-
-  return true;
 }

@@ -1,21 +1,14 @@
 #include "launcher.h"
+#include "quantum.h"
 
 #include "app/game/game.h"
 #include "app/clock/clock.h"
 #include "app/test/test.h"
-
-
-enum
-{
-  APP_ID_CLOCK,
-  APP_ID_TEST,
-  // APP_ID_CALC,
-  APP_ID_MAX
-};
-
+#include "app/calc/calc.h"
 
 
 #define APP_MAX_CNT     8
+
 
 
 
@@ -29,15 +22,16 @@ static bool eventReceive(event_t *p_event);
 
 extern lv_indev_t * indev_keypad;
 
-static uint8_t app_cnt = 0;
+static uint8_t     app_cnt = 0;
 static app_info_t *p_app_info[APP_MAX_CNT];
-static bool is_req_run = false;
-static uint8_t req_run_id = 0;
-static uint8_t cur_run_id = 0;
-static lv_obj_t *main_disp = NULL;
-static bool is_ready = false;
-static bool is_app_run = false;
-
+static uint8_t     req_run_id = APP_ID_NONE;
+static uint8_t     cur_run_id = APP_ID_NONE;
+static lv_obj_t   *main_disp  = NULL;
+static bool        is_ready   = false;
+static bool        is_app_run = false;
+static app_args_t  app_args   = {
+  .is_exit = false,
+};
 
 LV_FONT_DECLARE(neo);
 LV_FONT_DECLARE(convex32);
@@ -59,12 +53,11 @@ bool launcherInit(void)
 {
   bool ret;
 
-  p_app_info[APP_ID_CLOCK] = clockGetAppInfo();
-  p_app_info[APP_ID_TEST]  = testGetAppInfo();
-  // p_app_info[APP_ID_CALC]  = gameGetAppInfo();
-
-  app_cnt = APP_ID_MAX;
-
+  
+  p_app_info[app_cnt++] = clockGetAppInfo();
+  p_app_info[app_cnt++] = testGetAppInfo();
+  p_app_info[app_cnt++] = calcGetAppInfo();
+  
   lvglInit();
 
   uiInit();
@@ -87,43 +80,168 @@ bool eventReceive(event_t *p_event)
   return true;
 }
 
-void launcherUpdate(void)
+app_info_t *uiGetAppInfo(uint16_t id)
 {
-  if (is_req_run)
+  app_info_t *p_info = NULL;
+  
+  for (int i=0; i<app_cnt; i++)
   {
-    cur_run_id = req_run_id;
-    if (p_app_info[cur_run_id] != NULL)
+    if (p_app_info[i]->id == id)
     {
-      uiDeInit();
-
-      logPrintf("app run : %s\n", p_app_info[cur_run_id]->name);      
-      is_req_run = false;
-      is_app_run = true;
-      p_app_info[cur_run_id]->init();
-      p_app_info[cur_run_id]->run_func();      
-      is_app_run = false;
-      uiInit();
+      p_info = p_app_info[i];
+      break;
     }
   }
-  else
+
+  return p_info;
+}
+
+static int8_t get_app_index_by_id(uint8_t id)
+{
+  for (int i = 0; i < app_cnt; i++)
+  {
+    if (p_app_info[i]->id == id) 
+      return i;
+  }
+  return -1;
+}
+
+uint8_t uiGetPrevAppId(uint8_t current_id)
+{
+  int8_t idx = get_app_index_by_id(current_id);
+  if (idx <= 0) 
+  {
+    // 현재 첫 번째 앱이거나 찾지 못한 경우 마지막 앱으로 이동
+    return p_app_info[app_cnt - 1]->id; 
+  }
+  return p_app_info[idx - 1]->id;
+}
+
+uint8_t uiGetNextAppId(uint8_t current_id)
+{
+  int8_t idx = get_app_index_by_id(current_id);
+  if (idx == -1) 
+    return p_app_info[0]->id; // 못찾으면 첫번째
+  return p_app_info[(idx + 1) % app_cnt]->id;
+}
+
+void uiReqAppExit(void)
+{
+  app_args.is_exit = true;
+}
+
+void launcherUpdate(void)
+{
+  if (req_run_id == cur_run_id)
   {
     lvglUpdate();
+    return;
+  }
+
+  // 1. 현재 앱 종료 처리
+  app_info_t *p_cur = uiGetAppInfo(cur_run_id);
+  if (p_cur != NULL)
+  {
+    logPrintf("Exit App: %s\n", p_cur->name);
+    uiDeInit(); // LVGL UI 제거
+  }
+
+  // 2. 새 앱 정보 확인
+  app_info_t *p_req = uiGetAppInfo(req_run_id);
+  if (p_req != NULL)
+  {
+    logPrintf("Enter App: %s\n", p_req->name);
+
+    cur_run_id = req_run_id; // ID 동기화
+    is_app_run = true;
+
+    // 3. 새 앱 실행
+    if (p_req->init) 
+      p_req->init();
+    if (p_req->run_func) 
+    {
+      app_args.is_exit = false;
+      p_req->run_func(&app_args); // 여기서 앱이 block 될 수 있음
+    }
+
+    is_app_run = false;
+
+    // 4. 앱 종료 후 런처(메인 메뉴) UI 복구
+    uiInit();
   }
 }
 
-void uiThread(void const *arg)
+bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
 {
-  is_req_run = true;
-  req_run_id = APP_ID_CLOCK;
+  bool is_calc_mode = false;
+  bool is_matrix_mode = false;
 
-  while(1)
+
+  is_calc_mode   = (cur_run_id == APP_ID_CALC);
+  is_matrix_mode = (cur_run_id == APP_ID_MATRIX);
+
+
+  logPrintf("is_calc : %d\n", is_calc_mode);
+  logPrintf("keycode : 0x%X, %d\n", keycode, record->event.pressed);
+
+  if (record->event.pressed)
   {
-    if (is_ready)
-    {      
-      launcherUpdate();
+    bool is_ui_key = true;
+
+    switch(keycode)
+    {
+      case UI_KC_APP_P:
+        req_run_id = uiGetNextAppId(cur_run_id);        
+        break;
+
+      case UI_KC_APP_M:
+        req_run_id = uiGetPrevAppId(cur_run_id);        
+        break;
+
+      case UI_KC_CLK:
+        req_run_id = APP_ID_CLOCK;        
+        break;
+
+      case UI_KC_CAL:
+        req_run_id = APP_ID_CALC;        
+        break;
+
+      case UI_KC_MTX:
+        req_run_id = APP_ID_MATRIX;        
+        break;
+
+      default:
+        is_ui_key = false;
+        break;
+    }    
+
+    if (is_ui_key)
+    {
+      if (req_run_id != cur_run_id)
+      {
+        uiReqAppExit();
+      }
+      return false;
     }
-    delay(5);
   }
+
+  if (is_calc_mode)
+  {
+    if (record->event.pressed)
+    {
+      if (calcSetKeycode(keycode))
+      {
+        return false;
+      }
+    } 
+  }
+
+  if (is_matrix_mode)
+  {
+    return false;
+  }
+
+  return true; 
 }
 
 void btnThread(void const *arg)
@@ -166,73 +284,73 @@ void btnThread(void const *arg)
 
   while(1)
   {    
-    for (int i=0; i<BTN_MAX; i++)
-    {
-      switch(btn_info[i].state)
-      {
-        case 0:
-          if (keysGetPressed(btn_info[i].row, btn_info[i].col))
-          {
-            btn_info[i].pre_time = millis();
-            btn_info[i].state = 1;
-          } 
-          break;
+    // for (int i=0; i<BTN_MAX; i++)
+    // {
+    //   switch(btn_info[i].state)
+    //   {
+    //     case 0:
+    //       if (keysGetPressed(btn_info[i].row, btn_info[i].col))
+    //       {
+    //         btn_info[i].pre_time = millis();
+    //         btn_info[i].state = 1;
+    //       } 
+    //       break;
 
-        case 1:
-          if (!keysGetPressed(btn_info[i].row, btn_info[i].col))
-          {
-            btn_info[i].state = 0;
-          }
-          if (millis()-btn_info[i].pre_time >= 50)
-          {
-            btn_info[i].pressed = true;
-            btn_info[i].pressed_event = true;
-            btn_info[i].pre_time = millis();
-            btn_info[i].state = 2;
-          } 
-          break;
+    //     case 1:
+    //       if (!keysGetPressed(btn_info[i].row, btn_info[i].col))
+    //       {
+    //         btn_info[i].state = 0;
+    //       }
+    //       if (millis()-btn_info[i].pre_time >= 50)
+    //       {
+    //         btn_info[i].pressed = true;
+    //         btn_info[i].pressed_event = true;
+    //         btn_info[i].pre_time = millis();
+    //         btn_info[i].state = 2;
+    //       } 
+    //       break;
 
-        case 2:
-          if (!keysGetPressed(btn_info[i].row, btn_info[i].col))
-          {
-            btn_info[i].pre_time = millis();
-            btn_info[i].state = 3;
-          }
-          break;
+    //     case 2:
+    //       if (!keysGetPressed(btn_info[i].row, btn_info[i].col))
+    //       {
+    //         btn_info[i].pre_time = millis();
+    //         btn_info[i].state = 3;
+    //       }
+    //       break;
 
-        case 3:
-          if (keysGetPressed(btn_info[i].row, btn_info[i].col))
-          {
-            btn_info[i].state = 2;
-          }
-          if (millis()-btn_info[i].pre_time >= 50)
-          {
-            btn_info[i].pressed = false;
-            btn_info[i].state = 0;
-          } 
-          break;        
-      }
-    }
+    //     case 3:
+    //       if (keysGetPressed(btn_info[i].row, btn_info[i].col))
+    //       {
+    //         btn_info[i].state = 2;
+    //       }
+    //       if (millis()-btn_info[i].pre_time >= 50)
+    //       {
+    //         btn_info[i].pressed = false;
+    //         btn_info[i].state = 0;
+    //       } 
+    //       break;        
+    //   }
+    // }
 
-    if (btn_info[BTN_APP].pressed_event)
-    {       
-      is_req_run = true;
-      req_run_id = (cur_run_id + 1) % APP_ID_MAX;
+    // if (btn_info[BTN_APP].pressed_event)
+    // {       
+    //   is_req_run = true;
+    //   req_run_id = (cur_run_id + 1) % APP_ID_MAX;
 
-      if (is_app_run)
-        eventPub(EVENT_UI_APP_EXIT, 1);
-    } 
+    //   if (is_app_run)
+    //     eventPub(EVENT_UI_APP_EXIT, 1);
+    // } 
 
-    if (btn_info[BTN_MENU].pressed_event)
-    {       
-      if (is_app_run)
-        eventPub(EVENT_UI_APP_EXIT, 1);
-    } 
+    // if (btn_info[BTN_MENU].pressed_event)
+    // {       
+    //   if (is_app_run)
+    //     eventPub(EVENT_UI_APP_EXIT, 1);
+    // } 
 
-    for (int i=0; i<BTN_MAX; i++)
-    {
-      btn_info[i].pressed_event = false;
-    }    
+    // for (int i=0; i<BTN_MAX; i++)
+    // {
+    //   btn_info[i].pressed_event = false;
+    // }    
     delay(1);
   }
 }
@@ -245,7 +363,6 @@ void uiEvent(lv_event_t * e)
   logPrintf("id  %d\n", (int)lv_event_get_user_data(e));
 
   req_run_id = (int)lv_event_get_user_data(e);
-  is_req_run = true; 
 }
 
 void uiInit(void)
@@ -295,4 +412,18 @@ void uiDeInit(void)
 {
   lv_obj_delete(main_disp);
   main_disp = NULL;
+}
+
+void uiThread(void const *arg)
+{
+  req_run_id = APP_ID_CLOCK;
+
+  while(1)
+  {
+    if (is_ready)
+    {      
+      launcherUpdate();
+    }
+    delay(5);
+  }
 }

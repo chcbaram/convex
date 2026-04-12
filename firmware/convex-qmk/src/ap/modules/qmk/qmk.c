@@ -16,17 +16,14 @@ static void qmkUpdate(void);
 static void qmkThread(void const *arg);
 static void cliQmk(cli_args_t *args);
 static void idle_task(void);
-static bool eventReceive(event_t *p_event);
 
 static bool is_suspended = false;
-static bool is_enable = true;
 
 MODULE_DEF(qmk) 
 {
   .name = "qmk",
   .priority = MODULE_PRI_LOW,
   .init = qmkInit,
-  .event_cb = eventReceive,  
 };
 
 
@@ -76,21 +73,9 @@ void qmkUnLock(void)
 
 void qmkUpdate(void)
 {
-  if (is_enable)
-  {
-    keyboard_task();
-  }
+  keyboard_task();
   eeprom_task();
   idle_task();
-}
-
-bool eventReceive(event_t *p_event)
-{
-  if (p_event->code == EVENT_QMK_ENABLE)
-  {
-    is_enable = p_event->data;
-  }
-  return true;
 }
 
 void keyboard_post_init_user(void)
@@ -103,6 +88,12 @@ void keyboard_post_init_user(void)
 #endif
 }
 
+__attribute__((weak)) 
+bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
+{
+  return true;
+}
+
 bool process_record_user(uint16_t keycode, keyrecord_t *record)
 {
 #ifdef KILL_SWITCH_ENABLE
@@ -111,7 +102,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record)
 #ifdef KKUK_ENABLE
   kkuk_process(keycode, record);
 #endif
-  return true;
+  bool ret;
+
+  ret = qmk_process_keys(keycode, record);
+
+  return ret;
 }
 
 void idle_task(void)

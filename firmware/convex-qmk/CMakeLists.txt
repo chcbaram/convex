@@ -131,7 +131,7 @@ target_compile_options(${EXECUTABLE} PRIVATE
 
   -fdata-sections
   -ffunction-sections
-  
+
   -fstack-usage 
   -Wmissing-field-initializers
   -Wuninitialized 
@@ -157,6 +157,9 @@ target_link_options(${EXECUTABLE} PRIVATE
   -lsupc++
   -fno-rtti
   -lnosys
+
+  -u_printf_float
+
   -Wl,-Map=${PRJ_NAME}.map,--cref
   -Wl,--gc-sections
   -Xlinker -print-memory-usage -Xlinker

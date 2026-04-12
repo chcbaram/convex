@@ -36,7 +36,9 @@ bool hwInit(void)
   logPrintf("Booting..Date \t\t: %s\r\n", __DATE__); 
   logPrintf("Booting..Time \t\t: %s\r\n", __TIME__); 
   logPrintf("\n");
-
+  logPrintf("float %f\n", 9.1f);
+  logPrintf("float2 %g\n", 9.1);
+  logPrintf("float end\n");
   rtcInit();
   resetInit();
   swtimerInit();

@@ -1,0 +1,296 @@
+#include "app/calc/calc.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "quantum.h"
+
+
+// --- 폰트 선언 ---
+LV_FONT_DECLARE(convex32);
+LV_FONT_DECLARE(convex16);
+
+// --- 디자인 설정 ---
+#define COLOR_ACCENT   lv_color_hex(0xFF00B9)
+#define COLOR_BG       lv_color_hex(0x151820)
+#define COLOR_TEXT_DIM lv_color_hex(0x666666)
+
+// --- 계산기 상태 관리 ---
+typedef struct
+{
+  char   current_str[32]; // 현재 입력 문자열
+  char   history_str[64]; // 상단 수식 문자열
+  double result;          // 중간 계산 결과
+  char   last_op;         // 마지막 연산자 (+, -, *, /)
+  bool   is_new_input;    // 새 숫자를 입력할 차례인지 여부
+} calc_state_t;
+
+static calc_state_t state;
+
+// --- 전역 UI 핸들 ---
+static lv_obj_t *root          = NULL;
+static lv_obj_t *label_history = NULL;
+static lv_obj_t *label_main    = NULL;
+
+static lv_style_t style_main;
+static lv_style_t style_history;
+static bool       style_inited = false;
+static bool       is_pressed = false;
+static uint8_t    key_data = ' ';
+
+
+// --- 계산 로직 함수 ---
+
+static void reset_calc()
+{
+  memset(&state, 0, sizeof(calc_state_t));
+  strcpy(state.current_str, "0");
+  state.is_new_input = true;
+}
+
+static void update_ui_labels()
+{
+  if (label_main && label_history)
+  {
+    lv_label_set_text(label_history, state.history_str);
+    lv_label_set_text(label_main, state.current_str);
+  }
+}
+
+static void perform_operation(double current_val)
+{
+  switch (state.last_op)
+  {
+    case '+':
+      state.result += current_val;
+      break;
+    case '-':
+      state.result -= current_val;
+      break;
+    case '*':
+      state.result *= current_val;
+      break;
+    case '/':
+      if (current_val != 0) state.result /= current_val;
+      break;
+    default:
+      state.result = current_val;
+      break;
+  }
+}
+
+// 외부(키패드 등)에서 호출할 입력 프로세서
+void calc_input_char(char c)
+{
+  if (c >= '0' && c <= '9')
+  {
+    if (state.is_new_input || strcmp(state.current_str, "0") == 0)
+    {
+      snprintf(state.current_str, sizeof(state.current_str), "%c", c);
+      state.is_new_input = false;
+    }
+    else
+    {
+      if (strlen(state.current_str) < 15)
+      { // 입력 제한
+        strncat(state.current_str, &c, 1);
+      }
+    }
+  }
+  else if (c == '.')
+  {
+    if (!strchr(state.current_str, '.'))
+    {
+      strcat(state.current_str, ".");
+      state.is_new_input = false;
+    }
+  }
+  else if (c == '+' || c == '-' || c == '*' || c == '/')
+  {
+    double val = atof(state.current_str);
+    perform_operation(val);
+    state.last_op = c;
+    snprintf(state.history_str, sizeof(state.history_str), "%.10g %c", state.result, c);
+    state.is_new_input = true;
+  }
+  else if (c == '=')
+  {
+    double val = atof(state.current_str);
+    perform_operation(val);
+    snprintf(state.current_str, sizeof(state.current_str), "%.10g", state.result);
+    state.history_str[0] = '\0';
+    state.last_op        = 0;
+    state.is_new_input   = true;
+  }
+  else if (c == 'C')
+  {
+    reset_calc();
+  }
+
+  update_ui_labels();
+}
+
+// --- UI 초기화 ---
+
+static void uiInit(void)
+{
+  root = lv_obj_create(lv_screen_active());
+  lv_obj_set_size(root, 284, 76);
+  lv_obj_set_style_bg_color(root, COLOR_BG, 0);
+  lv_obj_set_style_pad_all(root, 0, 0); // 패딩 0으로 조정 (경계 문제 방지)
+  lv_obj_set_style_border_width(root, 0, 0);
+  lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
+
+  if (!style_inited)
+  {
+    lv_style_init(&style_main);
+    lv_style_set_text_color(&style_main, COLOR_ACCENT);
+    lv_style_set_text_font(&style_main, &convex32);
+
+    lv_style_init(&style_history);
+    lv_style_set_text_color(&style_history, COLOR_TEXT_DIM);
+    lv_style_set_text_font(&style_history, &convex16);
+    style_inited = true;
+  }
+
+  // 1. 좌측 CALC 태그 (좌표를 0 이상으로 조정)
+  lv_obj_t *mode_tag = lv_label_create(root);
+  lv_label_set_text(mode_tag, "CALC");
+  lv_obj_set_style_text_font(mode_tag, &convex16, 0);
+  lv_obj_set_style_text_color(mode_tag, COLOR_ACCENT, 0);
+  lv_obj_set_style_transform_rotation(mode_tag, 2700, 0); // 270도 회전
+  // 음수 오프셋(-12) 대신 안전한 위치로 조정
+  lv_obj_align(mode_tag, LV_ALIGN_LEFT_MID, 5, 0); 
+
+  // 2. 세로 구분선 (static 위치 확인)
+  static const lv_point_precise_t line_pts[] = { {0, 0}, {0, 40} }; // 길이를 살짝 줄임
+  lv_obj_t *line = lv_line_create(root);
+  lv_line_set_points(line, line_pts, 2);
+  lv_obj_set_style_line_width(line, 2, 0);
+  lv_obj_set_style_line_color(line, COLOR_ACCENT, 0);
+  // 태그 위치 변경에 맞춰 정렬 (35 -> 25)
+  lv_obj_align(line, LV_ALIGN_LEFT_MID, 25, 0);
+
+  // 3. 수식 이력 라벨 (폭을 더 타이트하게 조정)
+  label_history = lv_label_create(root);
+  lv_obj_add_style(label_history, &style_history, 0);
+  lv_label_set_long_mode(label_history, LV_LABEL_LONG_SCROLL_CIRCULAR);
+  lv_obj_set_width(label_history, 240); // 284 - 구분선영역
+  lv_label_set_text(label_history, "");
+  lv_obj_align(label_history, LV_ALIGN_TOP_RIGHT, -8, 5);
+  lv_obj_set_style_text_align(label_history, LV_TEXT_ALIGN_RIGHT, 0);
+
+  // 4. 메인 입력/결과 라벨
+  label_main = lv_label_create(root);
+  lv_obj_add_style(label_main, &style_main, 0);
+  lv_obj_set_width(label_main, 240);
+  lv_label_set_text(label_main, "0");
+  lv_obj_align(label_main, LV_ALIGN_BOTTOM_RIGHT, -8, -5);
+  lv_obj_set_style_text_align(label_main, LV_TEXT_ALIGN_RIGHT, 0);
+
+  reset_calc();
+}
+
+static void uiDeInit(void)
+{
+  if (root)
+  {
+    lv_obj_delete(root);
+    root          = NULL;
+    label_history = NULL;
+    label_main    = NULL;
+  }
+}
+
+// --- 메인 루프 및 인터페이스 ---
+
+static void calcInit(void)
+{
+  uiInit();
+}
+
+bool calcSetKeycode(uint16_t keycode)
+{
+  bool ret = true;
+
+
+  switch (keycode)
+  {
+    case KC_KP_0:
+      key_data = '0';
+      break;
+
+    case KC_KP_1 ... KC_KP_9:
+      key_data = '1' + (keycode - KC_KP_1);
+      break;
+
+    case KC_KP_DOT:
+      key_data = '.';
+      break;
+
+    case KC_KP_PLUS:
+      key_data = '+';
+      break;
+
+    case KC_KP_MINUS:
+      key_data = '-';
+      break;
+
+    case KC_KP_ENTER:
+      key_data = '=';
+      break;
+
+    // case KC_ESC:
+    //   // 계산기 종료 또는 초기화
+    //   is_calc_mode = false;
+    //   return false;
+
+    default:
+      ret = false;
+      break;
+  }  
+
+  if (ret)
+  {
+    is_pressed = true;
+  }
+  return ret;
+}
+
+void calcMain(app_args_t *p_args)
+{
+  uint32_t pre_time;
+  uint8_t cnt = 0;
+
+  pre_time = millis();
+  while (!p_args->is_exit)
+  {
+    // 1. 하드웨어 키 입력 확인 (사용자 구현 필요)
+    // char key = get_keypad_input();
+    
+    if (millis()-pre_time >= 2000)
+    {
+      pre_time = millis();
+      // calc_input_char('1' + cnt++);
+    }
+    if (is_pressed)
+    {
+      is_pressed = false;
+      calc_input_char(key_data);
+    }
+
+    lv_timer_handler(); // LVGL 9 핸들러
+    delay(5);
+  }
+  uiDeInit();
+}
+
+app_info_t *calcGetAppInfo(void)
+{
+  static app_info_t info = {
+    .id       = APP_ID_CALC,
+    .name     = "CALC",
+    .init     = calcInit,
+    .run_func = calcMain,
+  };
+  return &info;
+}

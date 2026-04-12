@@ -7,7 +7,7 @@ static void mainThread(void const *arg);
 
 int main(void)
 {
- bspInit();
+  bspInit();
 
 
   osThreadDef(main, mainThread, _HW_DEF_THREAD_MAIN_PRI, 0, _HW_DEF_THREAD_MAIN_STACK/4);
