@@ -156,6 +156,14 @@ void calc_input_char(char c)
       }
     }
   }
+  else if (c == '.')
+  {
+    if (!strchr(state.current_str, '.'))
+    {
+      strcat(state.current_str, ".");
+      state.is_new_input = false;
+    }
+  }  
   else if (c == '+' || c == '-' || c == 'x' || c == '/')
   {
     double val = atof(state.current_str);

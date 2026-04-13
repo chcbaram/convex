@@ -55,8 +55,8 @@ bool launcherInit(void)
 
   
   p_app_info[app_cnt++] = clockGetAppInfo();
-  p_app_info[app_cnt++] = testGetAppInfo();
   p_app_info[app_cnt++] = calcGetAppInfo();
+  p_app_info[app_cnt++] = testGetAppInfo();
   
   lvglInit();
 
