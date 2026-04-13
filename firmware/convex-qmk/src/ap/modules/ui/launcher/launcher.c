@@ -16,7 +16,6 @@ static void uiInit(void);
 static void uiDeInit(void);
 static void uiEvent(lv_event_t * e);
 static void uiThread(void const *arg);
-static void btnThread(void const *arg);
 static bool eventReceive(event_t *p_event);
 
 
@@ -63,8 +62,6 @@ bool launcherInit(void)
   uiInit();
 
   ret = threadCreate("ui", uiThread, NULL, _HW_DEF_THREAD_MODULE_PRI, _HW_DEF_THREAD_MODULE_STACK);
-  assert(ret);
-  ret = threadCreate("ui_btn", btnThread, NULL, _HW_DEF_THREAD_MODULE_PRI, _HW_DEF_THREAD_MODULE_STACK);
   assert(ret);
 
   logPrintf("[%s] uiThreadInit()\n", ret ? "OK":"E_");  
@@ -155,6 +152,9 @@ void launcherUpdate(void)
     cur_run_id = req_run_id; // ID 동기화
     is_app_run = true;
 
+
+    eepromWriteByte(HW_EEPROM_INIT_APP, cur_run_id);
+
     // 3. 새 앱 실행
     if (p_req->init) 
       p_req->init();
@@ -173,15 +173,7 @@ void launcherUpdate(void)
 
 bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
 {
-  bool is_calc_mode = false;
-  bool is_matrix_mode = false;
 
-
-  is_calc_mode   = (cur_run_id == APP_ID_CALC);
-  is_matrix_mode = (cur_run_id == APP_ID_MATRIX);
-
-
-  logPrintf("is_calc : %d\n", is_calc_mode);
   logPrintf("keycode : 0x%X, %d\n", keycode, record->event.pressed);
 
   if (record->event.pressed)
@@ -225,134 +217,20 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
     }
   }
 
-  if (is_calc_mode)
+  if (record->event.pressed)
   {
-    if (record->event.pressed)
+    if (calcSetKeycode(keycode))
     {
-      if (calcSetKeycode(keycode))
-      {
-        return false;
-      }
-    } 
-  }
+      return false;
+    }
+  } 
 
-  if (is_matrix_mode)
+  if (cur_run_id == APP_ID_MATRIX)
   {
     return false;
   }
 
   return true; 
-}
-
-void btnThread(void const *arg)
-{
-  enum
-  {
-    BTN_APP,
-    BTN_MENU,
-    BTN_LEFT,
-    BTN_RIGHT,
-    BTN_UP,
-    BTN_DOWN,
-    BTN_ENTER,
-    BTN_MAX
-  };
-
-  typedef struct
-  {
-    bool     is_use;
-    uint8_t  state;
-    uint32_t pre_time;
-    uint8_t  row;
-    uint8_t  col;
-    bool     pressed;
-    bool     pressed_event;
-  } btn_info_t;
-
-  
-  btn_info_t btn_info[BTN_MAX];
-  
-  memset(btn_info, 0, sizeof(btn_info));
-  
-  btn_info[BTN_APP].is_use = true;
-  btn_info[BTN_APP].row = 0;
-  btn_info[BTN_APP].col = 17;
-
-  btn_info[BTN_MENU].is_use = true;
-  btn_info[BTN_MENU].row = 0;
-  btn_info[BTN_MENU].col = 16;
-
-  while(1)
-  {    
-    // for (int i=0; i<BTN_MAX; i++)
-    // {
-    //   switch(btn_info[i].state)
-    //   {
-    //     case 0:
-    //       if (keysGetPressed(btn_info[i].row, btn_info[i].col))
-    //       {
-    //         btn_info[i].pre_time = millis();
-    //         btn_info[i].state = 1;
-    //       } 
-    //       break;
-
-    //     case 1:
-    //       if (!keysGetPressed(btn_info[i].row, btn_info[i].col))
-    //       {
-    //         btn_info[i].state = 0;
-    //       }
-    //       if (millis()-btn_info[i].pre_time >= 50)
-    //       {
-    //         btn_info[i].pressed = true;
-    //         btn_info[i].pressed_event = true;
-    //         btn_info[i].pre_time = millis();
-    //         btn_info[i].state = 2;
-    //       } 
-    //       break;
-
-    //     case 2:
-    //       if (!keysGetPressed(btn_info[i].row, btn_info[i].col))
-    //       {
-    //         btn_info[i].pre_time = millis();
-    //         btn_info[i].state = 3;
-    //       }
-    //       break;
-
-    //     case 3:
-    //       if (keysGetPressed(btn_info[i].row, btn_info[i].col))
-    //       {
-    //         btn_info[i].state = 2;
-    //       }
-    //       if (millis()-btn_info[i].pre_time >= 50)
-    //       {
-    //         btn_info[i].pressed = false;
-    //         btn_info[i].state = 0;
-    //       } 
-    //       break;        
-    //   }
-    // }
-
-    // if (btn_info[BTN_APP].pressed_event)
-    // {       
-    //   is_req_run = true;
-    //   req_run_id = (cur_run_id + 1) % APP_ID_MAX;
-
-    //   if (is_app_run)
-    //     eventPub(EVENT_UI_APP_EXIT, 1);
-    // } 
-
-    // if (btn_info[BTN_MENU].pressed_event)
-    // {       
-    //   if (is_app_run)
-    //     eventPub(EVENT_UI_APP_EXIT, 1);
-    // } 
-
-    // for (int i=0; i<BTN_MAX; i++)
-    // {
-    //   btn_info[i].pressed_event = false;
-    // }    
-    delay(1);
-  }
 }
 
 void uiEvent(lv_event_t * e)
@@ -416,7 +294,17 @@ void uiDeInit(void)
 
 void uiThread(void const *arg)
 {
+  uint8_t init_id;
+
   req_run_id = APP_ID_CLOCK;
+
+  eepromReadByte(HW_EEPROM_INIT_APP, &init_id);
+  if (uiGetAppInfo(init_id) != NULL)
+  {
+    req_run_id = init_id;
+  }
+
+  via_qmk_lcd_init();
 
   while(1)
   {

@@ -45,6 +45,6 @@ typedef struct
 // 공통으로 필요한 모듈 
 //
 #include "module.h"
-
+#include "port/lcd_port.h"
 
 #endif

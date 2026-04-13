@@ -120,6 +120,7 @@ enum via_channel_id {
     id_qmk_kkuk               = 12,
     id_qmk_date               = 13,
     id_qmk_time               = 14,
+    id_qmk_lcd                = 15,
 };
 
 enum via_qmk_backlight_value {

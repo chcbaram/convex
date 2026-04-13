@@ -7,7 +7,7 @@
 #include QMK_KEYMAP_CONFIG_H
 
 
-#define _DEF_FIRMWATRE_VERSION    "V260413R2"
+#define _DEF_FIRMWATRE_VERSION    "V260414R1"
 #define _DEF_BOARD_NAME           "CONVEX-QMK-FW"
 
 
@@ -70,8 +70,8 @@
 #define      HW_SPI_MAX_CH          1
 
 #define _USE_HW_EEPROM
-#define      HW_EEPROM_MAX_PAGES    32
-#define      HW_EEPROM_MODE         0
+#define      HW_EEPROM_USER        (8 * 1024)
+#define      HW_EEPROM_INIT_APP    (HW_EEPROM_USER + 0)
 
 #define _USE_HW_I2C
 #define      HW_I2C_MAX_CH          1

@@ -18,3 +18,7 @@
 #define EECONFIG_USER_KILL_SWITCH_LR  ((void *)((uint32_t)EECONFIG_USER_DATABLOCK +  8)) // 8B
 #define EECONFIG_USER_KILL_SWITCH_UD  ((void *)((uint32_t)EECONFIG_USER_DATABLOCK + 16)) // 8B
 #define EECONFIG_USER_KKUK            ((void *)((uint32_t)EECONFIG_USER_DATABLOCK + 24)) // 4B
+#define EECONFIG_USER_COLOR_LCD       ((void *)((uint32_t)EECONFIG_USER_DATABLOCK + 28)) // 4B
+#define EECONFIG_USER_COLOR_TIME      ((void *)((uint32_t)EECONFIG_USER_DATABLOCK + 32)) // 4B
+#define EECONFIG_USER_COLOR_DATE      ((void *)((uint32_t)EECONFIG_USER_DATABLOCK + 36)) // 4B
+#define EECONFIG_USER_COLOR_CALC      ((void *)((uint32_t)EECONFIG_USER_DATABLOCK + 40)) // 4B

@@ -15,29 +15,6 @@ static app_info_t app_info = {
 
 
 
-void appInit(void)
-{
-  uiInit();
-}
-
-void appMain(app_args_t *p_args)
-{
-  while(!p_args->is_exit)
-  {
-    lvglUpdate();
-    delay(5);    
-  }
-  p_args->is_exit = false;
-
-  ui_clock_destroy();
-}
-
-app_info_t *clockGetAppInfo(void)
-{
-  return &app_info;
-}
-
-
 // 폰트 선언
 LV_FONT_DECLARE(convex32);
 LV_FONT_DECLARE(convex24);
@@ -344,3 +321,42 @@ int main(void)
 	return 0;
 }
 */
+
+
+void appInit(void)
+{
+  uiInit();
+}
+
+void appMain(app_args_t *p_args)
+{
+  RGB rgb;
+  lv_color_t color;
+  
+  
+  while(!p_args->is_exit)
+  {
+    rgb = hsv_to_rgb(via_qmk_lcd_get_color(COLOR_TYPE_DATE));
+    color.red   = rgb.r;
+    color.green = rgb.g;
+    color.blue  = rgb.b;
+    lv_style_set_text_color(&style_date, color);
+
+    rgb = hsv_to_rgb(via_qmk_lcd_get_color(COLOR_TYPE_TIME));
+    color.red   = rgb.r;
+    color.green = rgb.g;
+    color.blue  = rgb.b;
+    lv_style_set_text_color(&style_time, color);
+
+    lvglUpdate();
+    delay(5);    
+  }
+  p_args->is_exit = false;
+
+  ui_clock_destroy();
+}
+
+app_info_t *clockGetAppInfo(void)
+{
+  return &app_info;
+}

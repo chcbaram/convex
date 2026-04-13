@@ -325,6 +325,9 @@ bool calcSetKeycode(uint16_t keycode)
 
 void calcMain(app_args_t *p_args)
 {
+  RGB rgb;
+  lv_color_t color;
+
   while (!p_args->is_exit)
   {
     if (is_pressed)
@@ -335,6 +338,16 @@ void calcMain(app_args_t *p_args)
 
     lv_timer_handler(); // LVGL 9 핸들러
     delay(5);
+  
+    if (via_qmk_lcd_is_update(COLOR_TYPE_CALC))
+    {
+      rgb = hsv_to_rgb(via_qmk_lcd_get_color(COLOR_TYPE_CALC));
+      color.red   = rgb.r;
+      color.green = rgb.g;
+      color.blue  = rgb.b;
+      lv_style_set_text_color(&style_main, color);   
+      update_ui_labels();
+    }
   }
   uiDeInit();
 }

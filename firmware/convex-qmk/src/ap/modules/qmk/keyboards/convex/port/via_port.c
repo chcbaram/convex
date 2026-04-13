@@ -1,6 +1,7 @@
 #include "ver_port.h"
 #include "sys_port.h"
 #include "rtc_port.h"
+#include "lcd_port.h"
 
 
 
@@ -27,6 +28,12 @@ void via_custom_value_command_kb(uint8_t *data, uint8_t length)
   if (*channel_id == id_qmk_time)
   {
     via_qmk_rtc(data, length);
+    return;
+  }
+
+  if (*channel_id == id_qmk_lcd)
+  {
+    via_qmk_lcd(data, length);
     return;
   }
 
