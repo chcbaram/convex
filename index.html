@@ -118,9 +118,15 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                // 파일 확장자 처리 최적화
-                const downloadName = file.name.split('.').slice(0, -1).join('.') + ".uf2";
-                a.download = downloadName;
+
+
+                // --- 파일명 자동 생성 로직 수정 ---
+                const familySelect = document.getElementById('familyId');
+                const slotName = familySelect.options[familySelect.selectedIndex].text; // "SLOT 1" 등 추출
+                const formattedSlotName = slotName.toLowerCase().replace(" ", "_"); // "slot_1"으로 변환
+
+                // 결과파일명 예: "slot_1.uf2"
+                a.download = `${formattedSlotName}.uf2`;
                 a.click();
                 
                 status.innerText = `변환 완료! (Size: ${fileSize} bytes)`;
