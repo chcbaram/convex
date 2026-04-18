@@ -175,7 +175,7 @@ void launcherUpdate(void)
 bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
 {
 
-  logPrintf("keycode : 0x%X, %d\n", keycode, record->event.pressed);
+  // logPrintf("keycode : 0x%X, %d\n", keycode, record->event.pressed);
 
   if (record->event.pressed)
   {

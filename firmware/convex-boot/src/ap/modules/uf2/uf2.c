@@ -85,6 +85,8 @@ void uf2_flash_flush(WriteState *state)
   {
     logPrintf("uf2_flash_flush() fail\n");
   }   
+
+  bootVerifyUpdate();
 }
 
 void uf2_flash_write(WriteState *state, uint32_t addr, void const *data, uint32_t len)
@@ -101,7 +103,7 @@ void uf2_flash_write(WriteState *state, uint32_t addr, void const *data, uint32_
 
   flash_addr = FLASH_ADDR_UPDATE + FLASH_SIZE_TAG + addr;
 
-  if (!uf2_flash_is_blank(flash_addr, len))
+  if (addr == 0 || (flash_addr%0x10000) == 0)
   {
     ret = flashErase(flash_addr, len);
     if (!ret)
@@ -109,6 +111,7 @@ void uf2_flash_write(WriteState *state, uint32_t addr, void const *data, uint32_
       logPrintf("[%s] flashErase(0x%X, %d)\n", ret?"OK":"E_", flash_addr, len);
     }
   }
+
   ret = flashWrite(flash_addr, (uint8_t *)data, len);
   if (!ret)
   {

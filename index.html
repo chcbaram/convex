@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>UF2 Converter with Header Presets</title>
+    <style>
+        body { font-family: 'Pretendard', -apple-system, sans-serif; line-height: 1.6; max-width: 700px; margin: 40px auto; padding: 20px; background-color: #f1f3f5; }
+        .card { background: white; padding: 35px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h2 { color: #1c7ed6; margin-top: 0; border-bottom: 2px solid #e7f5ff; padding-bottom: 10px; }
+        .config-section { background: #f8f9fa; padding: 25px; border-radius: 12px; margin: 20px 0; text-align: left; border: 1px solid #e9ecef; }
+        label { display: block; font-weight: bold; margin-bottom: 10px; color: #495057; }
+        select, input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ced4da; border-radius: 8px; font-size: 15px; background: white; }
+        .hint { font-size: 13px; color: #868e96; margin-top: -15px; margin-bottom: 15px; }
+        button { background-color: #228be6; color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: background 0.2s; }
+        button:hover { background-color: #1c7ed6; }
+        #status { margin-top: 20px; font-weight: bold; color: #1c7ed6; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>CONVEX UF2 생성기</h2>
+    <p>파일을 선택하고 UF2로 변환하세요.</p>
+
+    <div class="config-section">
+        <label for="magicSelect">파일 종류</label>
+        <select id="magicSelect">
+            <option value="GIF_IMAGE">GIF 이미지</option>
+            <option value="GIF_MOVIE">GIF 동영상</option>
+        </select>
+        <!-- <p class="hint">* 이 문자열은 바이너리의 가장 앞에 32바이트 크기로 포함됩니다.</p> -->
+
+        <label for="familyId">SLOT</label>
+        <select id="familyId">
+            <option value="0xFFFF0010">SLOT 1</option>
+            <option value="0xFFFF0011">SLOT 2</option>
+            <option value="0xFFFF0012">SLOT 3</option>
+            <option value="0xFFFF0013">SLOT 4</option>
+        </select>
+
+        <label for="fileInput">File (.gif)</label>
+        <input type="file" id="fileInput" accept=".gif">
+    </div>
+
+    <button onclick="convert()">UF2 변환 및 다운로드</button>
+    <div id="status"></div>
+</div>
+
+<script>
+    async function convert() {
+        const fileInput = document.getElementById('fileInput');
+        const magicString = document.getElementById('magicSelect').value;
+        const familyId = parseInt(document.getElementById('familyId').value, 16);
+        const status = document.getElementById('status');
+
+        if (!fileInput.files[0]) {
+            alert("파일을 선택해 주세요.");
+            return;
+        }
+
+        status.innerText = "Processing...";
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                const originalBin = new Uint8Array(e.target.result);
+                const fileSize = originalBin.length; // 파일 사이즈 추출
+                
+                // 1. 헤더 생성 (32바이트 고정)
+                const header = new Uint8Array(32);
+                const headerView = new DataView(header.buffer);
+                
+                // [1-1] Magic String 삽입 (오프셋 0부터)
+                for (let i = 0; i < Math.min(magicString.length, 16); i++) {
+                    header[i] = magicString.charCodeAt(i);
+                }
+
+                // [1-2] 파일 사이즈 삽입 (오프셋 16에 4바이트 정수로 기록)
+                // Little Endian 방식으로 저장 (대부분의 MCU 호환)
+                headerView.setUint32(16, fileSize, true);
+
+                // 2. 데이터 병합 (헤더 32바이트 + 원본 바이너리)
+                const combinedData = new Uint8Array(header.length + originalBin.length);
+                combinedData.set(header, 0);
+                combinedData.set(originalBin, header.length);
+
+                // 3. UF2 블록 생성 (기존과 동일)
+                const blocks = [];
+                const numBlocks = Math.ceil(combinedData.length / 256);
+
+                for (let i = 0; i < numBlocks; i++) {
+                    const block = new Uint8Array(512);
+                    const view = new DataView(block.buffer);
+
+                    view.setUint32(0, 0x0A324655, true);
+                    view.setUint32(4, 0x9E5D5157, true);
+                    view.setUint32(8, 0x00002000, true);
+                    view.setUint32(12, 0x00000000 + (i * 256), true);
+                    view.setUint32(16, 256, true);
+                    view.setUint32(20, i, true);
+                    view.setUint32(24, numBlocks, true);
+                    view.setUint32(28, familyId, true);
+
+                    const start = i * 256;
+                    const end = Math.min(start + 256, combinedData.length);
+                    block.set(combinedData.slice(start, end), 32);
+
+                    view.setUint32(508, 0x0AB16F30, true);
+                    blocks.push(block);
+                }
+
+                // 4. 합치기 및 다운로드 (파일명 뒤에 .uf2 강제 적용)
+                const finalBuffer = new Uint8Array(blocks.length * 512);
+                blocks.forEach((b, idx) => finalBuffer.set(b, idx * 512));
+
+                const blob = new Blob([finalBuffer], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // 파일 확장자 처리 최적화
+                const downloadName = file.name.split('.').slice(0, -1).join('.') + ".uf2";
+                a.download = downloadName;
+                a.click();
+                
+                status.innerText = `변환 완료! (Size: ${fileSize} bytes)`;
+            } catch (err) {
+                status.innerText = "에러: " + err.message;
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+</body>
+</html>

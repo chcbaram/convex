@@ -78,6 +78,7 @@ uint16_t bootVerifyUpdate(void)
       if (p_tag->fw_crc != crc)
       {
         err_code = ERR_BOOT_FW_CRC;
+        logPrintf("[E_] CRC : fw_crc 0x%X crc 0x%X\n", p_tag->fw_crc, crc);
       }
     }
   } while(0);
