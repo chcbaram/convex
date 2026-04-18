@@ -119,10 +119,12 @@ void idle_task(void)
     if (is_suspended_cur)
     {
       suspend_power_down();
+      eventPub(EVENT_QMK_SUSPEND, 1);
     }
     else
     {
       suspend_wakeup_init();
+      eventPub(EVENT_QMK_RESUME, 1);
     }
 
     is_suspended = is_suspended_cur;

@@ -616,8 +616,9 @@ void lcdDisplayOffDimming(uint32_t dim_ms)
     lcdSetBackLight(bright_max * (dim_cnt - i - 1) / dim_cnt);
     delay(dim_step);
   }
-
-  lcdSetBackLight(bright_max);
+  cfg.backlight_value = bright_max;
+  
+  pwmWrite(LCD_BL_PWM, 0);
 }
 
 int32_t lcdGetWidth(void)

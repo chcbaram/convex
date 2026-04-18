@@ -13,7 +13,7 @@
 
 
 static void uiInit(void);
-static void uiDeInit(void);
+// static void uiDeInit(void);
 static void uiEvent(lv_event_t * e);
 static void uiThread(void const *arg);
 static bool eventReceive(event_t *p_event);
@@ -28,6 +28,7 @@ static uint8_t     cur_run_id = APP_ID_NONE;
 static lv_obj_t   *main_disp  = NULL;
 static bool        is_ready   = false;
 static bool        is_app_run = false;
+static bool        is_qmk_suspend = false;
 static app_args_t  app_args   = {
   .is_exit = false,
 };
@@ -75,6 +76,22 @@ bool eventReceive(event_t *p_event)
   {
     is_ready = true;
   }
+
+  if (p_event->code == EVENT_QMK_SUSPEND)
+  {
+    is_qmk_suspend = true;
+    lcdDisplayOffDimming(500);
+  }
+
+  if (p_event->code == EVENT_QMK_RESUME)
+  {    
+    if (is_qmk_suspend)
+    {
+      is_qmk_suspend = false;
+      lcdDisplayOnDimming(500);
+    }
+  }
+  
   return true;
 }
 
@@ -141,7 +158,7 @@ void launcherUpdate(void)
   if (p_cur != NULL)
   {
     logPrintf("Exit App: %s\n", p_cur->name);
-    uiDeInit(); // LVGL UI 제거
+    // uiDeInit(); // LVGL UI 제거
   }
 
   // 2. 새 앱 정보 확인
@@ -168,7 +185,7 @@ void launcherUpdate(void)
     is_app_run = false;
 
     // 4. 앱 종료 후 런처(메인 메뉴) UI 복구
-    uiInit();
+    // uiInit();
   }
 }
 
@@ -287,11 +304,11 @@ void uiInit(void)
   lv_obj_update_snap(main_disp, LV_ANIM_ON);
 }
 
-void uiDeInit(void)
-{
-  lv_obj_delete(main_disp);
-  main_disp = NULL;
-}
+// void uiDeInit(void)
+// {
+//   lv_obj_delete(main_disp);
+//   main_disp = NULL;
+// }
 
 void uiThread(void const *arg)
 {

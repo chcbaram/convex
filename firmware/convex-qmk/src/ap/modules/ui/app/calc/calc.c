@@ -207,6 +207,11 @@ void calc_input_char(char c)
 // --- UI 초기화 ---
 static void uiInit(void)
 {
+
+  lv_mem_monitor_t mon;
+  lv_mem_monitor(&mon);
+  logPrintf("IN Free memory: %u bytes (%d%% used)\n", mon.free_size, mon.used_pct);
+
   root = lv_obj_create(lv_screen_active());
   lv_obj_set_size(root, 284, 76);
   lv_obj_set_style_bg_color(root, COLOR_BG, 0);
@@ -255,6 +260,10 @@ static void uiDeInit(void)
     label_history = NULL;
     label_main    = NULL;
   }
+
+  lv_mem_monitor_t mon;
+  lv_mem_monitor(&mon);
+  logPrintf("IN Free memory: %u bytes (%d%% used)\n", mon.free_size, mon.used_pct);
 }
 
 // --- 메인 루프 및 인터페이스 ---
@@ -273,7 +282,7 @@ bool calcSetKeycode(uint16_t keycode)
   {
     return false;
   }
-  
+
   switch (keycode)
   {
     case KC_KP_0:
@@ -341,7 +350,8 @@ void calcMain(app_args_t *p_args)
       calc_input_char(key_data);
     }
 
-    lv_timer_handler(); // LVGL 9 핸들러
+    // lv_timer_handler(); // LVGL 9 핸들러
+    lvglUpdate();
     delay(5);
   
     if (via_qmk_lcd_is_update(COLOR_TYPE_CALC))

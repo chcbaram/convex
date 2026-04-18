@@ -10,6 +10,8 @@ typedef enum
   EVENT_UI_READY,
   EVENT_UI_APP_EXIT,
   EVENT_QMK_ENABLE,
+  EVENT_QMK_SUSPEND,
+  EVENT_QMK_RESUME,
   EVENT_MAX,  
 } EventCode_t;
 

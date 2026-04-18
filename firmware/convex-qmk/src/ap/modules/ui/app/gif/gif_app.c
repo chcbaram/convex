@@ -172,6 +172,10 @@ static void uiInit(void)
     fs_inited = true;
   }
 
+  lv_mem_monitor_t mon;
+  lv_mem_monitor(&mon);
+  logPrintf("IN Free memory: %u bytes (%d%% used)\n", mon.free_size, mon.used_pct);
+
   root = lv_obj_create(lv_screen_active());
   lv_obj_set_size(root, 284, 76); // 디스플레이 크기 고정
   lv_obj_set_style_bg_color(root, COLOR_BG, 0);
@@ -191,6 +195,10 @@ static void uiDeInit(void)
     root          = NULL;
     state.gif_obj = NULL;
   }
+
+  lv_mem_monitor_t mon;
+  lv_mem_monitor(&mon);
+  logPrintf("OUT Free memory: %u bytes (%d%% used)\n", mon.free_size, mon.used_pct);
 }
 
 // --- 키 입력 처리 (슬롯 변경) ---
@@ -202,7 +210,7 @@ bool gifSetKeycode(uint16_t keycode)
   {
     return false;
   }
-    
+
   switch (keycode)
   {
     case KC_KP_1:
@@ -235,10 +243,12 @@ bool gifSetKeycode(uint16_t keycode)
 // --- 메인 루프 ---
 void gifMain(app_args_t *p_args)
 {
+  uiInit();
   while (!p_args->is_exit)
   {
     // LVGL 타이머 핸들러 호출
-    lv_timer_handler();
+    // lv_timer_handler();
+    lvglUpdate();
     delay(5);
   }
   uiDeInit();
@@ -250,7 +260,7 @@ app_info_t *gifGetAppInfo(void)
   static app_info_t info = {
     .id       = APP_ID_GIF,
     .name     = "GIF PLAYER",
-    .init     = uiInit,
+    .init     = NULL,
     .run_func = gifMain,
   };
   return &info;
