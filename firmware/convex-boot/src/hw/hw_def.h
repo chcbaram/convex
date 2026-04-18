@@ -6,7 +6,7 @@
 #include "bsp.h"
 #include <time.h>
 
-#define _DEF_FIRMWATRE_VERSION    "V251116R1"
+#define _DEF_FIRMWATRE_VERSION    "V260418R1"
 #define _DEF_BOARD_NAME           "CONVEX-BOOT"
 
 
@@ -74,11 +74,12 @@
 #define FLASH_SIZE_VEC              0x400
 #define FLASH_SIZE_VER              0x400
 #define FLASH_SIZE_FIRM             (2*1024*1024 - 256*1024)
+#define FLASH_SIZE_SLOT             (1*1024*1024)
 
 #define FLASH_ADDR_BOOT             0x08000000
 #define FLASH_ADDR_FIRM             0x08040000
 #define FLASH_ADDR_UPDATE           0x90000000
-
+#define FLASH_ADDR_UPDATE_SLOT      0x90400000
 
 #define KBD_NAME                    "CONVEX"
 

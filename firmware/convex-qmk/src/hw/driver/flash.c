@@ -8,6 +8,16 @@
 #include "cli.h"
 
 
+#ifdef _USE_HW_RTOS
+#define lock()      xSemaphoreTake(mutex_lock, portMAX_DELAY);
+#define unLock()    xSemaphoreGive(mutex_lock);
+static SemaphoreHandle_t mutex_lock;
+#else
+#define lock()      
+#define unLock()    
+#endif
+
+
 #define FLASH_ADDR(bank)          (0x8000000 + (bank*FLASH_BANK_SIZE))
 #define FLASH_MAX_BANK            2
 #define FLASH_MAX_SECTOR          FLASH_SECTOR_TOTAL
@@ -27,6 +37,10 @@ static bool flashInSector(uint8_t bank, uint16_t sector_num, uint32_t addr, uint
 
 bool flashInit(void)
 {
+
+#ifdef _USE_HW_RTOS
+  mutex_lock = xSemaphoreCreateMutex();
+#endif
 
   logPrintf("[OK] flashInit()\n");
 
@@ -87,7 +101,9 @@ bool flashErase(uint32_t addr, uint32_t length)
 #ifdef _USE_HW_QSPI
   if (addr >= qspiGetAddr() && addr < (qspiGetAddr() + qspiGetLength()))
   {
+    lock();
     ret = qspiErase(addr - qspiGetAddr(), length);
+    unLock();
     return ret;
   }
 #endif
@@ -159,7 +175,9 @@ bool flashWrite(uint32_t addr, uint8_t *p_data, uint32_t length)
 #ifdef _USE_HW_QSPI
   if (addr >= qspiGetAddr() && addr < (qspiGetAddr() + qspiGetLength()))
   {
+    lock();
     ret = qspiWrite(addr - qspiGetAddr(), p_data, length);
+    unLock();
     return ret;
   }
 #endif

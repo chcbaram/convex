@@ -35,10 +35,12 @@
 #define BPB_SECTOR_SIZE           (512)
 
 
-static uint32_t _flash_size;
-static uint16_t _flash_crc = 0;
-static uint32_t _flash_len = 0;
-static bool is_jump_fw = false;
+static uint32_t   _flash_size;
+static uint16_t   _flash_crc = 0;
+static uint32_t   _flash_len = 0;
+static bool       is_jump_fw = false;
+static bool       is_slot    = false;
+static uint8_t    slot_num   = 0;
 static uf2_info_t uf2_info;
 
 
@@ -91,6 +93,12 @@ void uf2_flash_write(WriteState *state, uint32_t addr, void const *data, uint32_
   bool ret = true;
 
 
+  if (addr == 0)
+  {
+    _flash_crc = 0;
+    _flash_len = 0;
+  }  
+
   flash_addr = FLASH_ADDR_UPDATE + FLASH_SIZE_TAG + addr;
 
   if (!uf2_flash_is_blank(flash_addr, len))
@@ -120,12 +128,75 @@ void uf2_flash_complete(WriteState *state)
     
   uf2_info.state = 2;
 
-  err_code = bootUpdateFirm();
-  logPrintf("[%s] bootUpdateFirm()\n", err_code==OK?"OK":"E_");
-  if (err_code == OK)
+  if (is_slot)
   {
     is_jump_fw = true;
   }
+  else
+  {
+    err_code = bootUpdateFirm();
+    logPrintf("[%s] bootUpdateFirm()\n", err_code==OK?"OK":"E_");
+    if (err_code == OK)
+    {
+      is_jump_fw = true;
+    }
+  }
+}
+
+void uf2_flash_write_gif(WriteState *state, uint8_t slot, uint32_t addr, void const *data, uint32_t len)
+{
+  uint32_t flash_addr;
+  bool ret = true;
+
+
+  if (addr == 0)
+  {
+    _flash_crc = 0;
+    _flash_len = 0;
+  }
+
+  flash_addr = (FLASH_ADDR_UPDATE_SLOT + slot * FLASH_SIZE_SLOT) + FLASH_SIZE_TAG + addr;
+
+  if (!uf2_flash_is_blank(flash_addr, len))
+  {
+    ret = flashErase(flash_addr, len);
+    if (!ret)
+    {
+      logPrintf("[%s] flashErase(0x%X, %d)\n", ret?"OK":"E_", flash_addr, len);
+    }
+  }
+  ret = flashWrite(flash_addr, (uint8_t *)data, len);
+  if (!ret)
+  {
+    logPrintf("[%s] flashWrite 0x%X, %d\n", ret?"OK":"E_", flash_addr, len);
+  }
+
+  _flash_crc  = utilCalcCRC(_flash_crc, (uint8_t *)data, len);
+  _flash_len += len;
+}
+
+void uf2_flash_flush_slot(WriteState *state, uint8_t slot)
+{
+  firm_tag_t firm_tag;
+  uint32_t flash_addr;
+
+  firm_tag.magic_number = TAG_MAGIC_NUMBER;
+  firm_tag.fw_addr      = FLASH_SIZE_TAG;
+  firm_tag.fw_size      = _flash_len;
+  firm_tag.fw_crc       = _flash_crc;
+  
+  cliPrintf("\n");
+  cliPrintf("slot    : %d\n", slot);
+  cliPrintf("fw addr : 0x%X\n", firm_tag.fw_addr);
+  cliPrintf("fw size : %d B\n", firm_tag.fw_size );
+  cliPrintf("fw crc  : 0x%X\n", firm_tag.fw_crc);
+
+  flash_addr = (FLASH_ADDR_UPDATE_SLOT + slot * FLASH_SIZE_SLOT);
+
+  if (flashWrite(flash_addr, (uint8_t *)&firm_tag, sizeof(firm_tag_t)) != true)
+  {
+    logPrintf("uf2_flash_flush_slot() fail\n");
+  }   
 }
 
 //--------------------------------------------------------------------+
@@ -206,8 +277,15 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
 
   if (bl->familyID == BOARD_UF2_FAMILY_ID)
   {
+    is_slot = false;
     // generic family ID
     uf2_flash_write(state, bl->targetAddr, bl->data, bl->payloadSize);
+  }
+  else if (bl->familyID >= BOARD_UF2_FAMILY_ID_SLOT_S && bl->familyID <= BOARD_UF2_FAMILY_ID_SLOT_E)
+  {
+    is_slot  = true;
+    slot_num = bl->familyID - BOARD_UF2_FAMILY_ID_SLOT_S;
+    uf2_flash_write_gif(state, slot_num, bl->targetAddr, bl->data, bl->payloadSize);
   }
   else
   {
@@ -251,7 +329,10 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
       // TODO numWritten can be smaller than numBlocks if return early
       if (state->numWritten >= state->numBlocks)
       {
-        uf2_flash_flush(state);              
+        if (is_slot)        
+          uf2_flash_flush_slot(state, slot_num);
+        else  
+          uf2_flash_flush(state);              
       }
     }
 
@@ -259,7 +340,10 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
 
     lcd_req_info_t info;    
     info.mode = LCD_INFO_MODE_PROGRESS;
-    info.title_str = "Copy...";
+    if (is_slot)
+      info.title_str = "Copy...SLOT";
+    else
+      info.title_str = "Copy...FIRM";
     info.percent = uf2_info.percent; 
     lcdUpdate(false, &info);
     

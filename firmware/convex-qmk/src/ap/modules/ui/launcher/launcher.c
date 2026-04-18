@@ -1,10 +1,10 @@
 #include "launcher.h"
 #include "quantum.h"
 
-#include "app/game/game.h"
 #include "app/clock/clock.h"
 #include "app/test/test.h"
 #include "app/calc/calc.h"
+#include "app/gif/gif_app.h"
 
 
 #define APP_MAX_CNT     8
@@ -56,6 +56,7 @@ bool launcherInit(void)
   p_app_info[app_cnt++] = clockGetAppInfo();
   p_app_info[app_cnt++] = calcGetAppInfo();
   p_app_info[app_cnt++] = testGetAppInfo();
+  p_app_info[app_cnt++] = gifGetAppInfo();
   
   lvglInit();
 

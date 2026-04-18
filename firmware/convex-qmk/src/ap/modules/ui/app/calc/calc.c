@@ -269,6 +269,11 @@ bool calcSetKeycode(uint16_t keycode)
   bool ret = true;
 
 
+  if (root == NULL)
+  {
+    return false;
+  }
+  
   switch (keycode)
   {
     case KC_KP_0:

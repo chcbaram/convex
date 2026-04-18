@@ -21,6 +21,7 @@ enum
   APP_ID_CLOCK,
   APP_ID_MATRIX,
   APP_ID_CALC,
+  APP_ID_GIF,
   APP_ID_MAX
 };
 

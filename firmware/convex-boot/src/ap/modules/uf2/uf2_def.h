@@ -13,10 +13,11 @@ extern "C" {
 #define UF2_INDEX_URL             "https://"
 
 
-#define BOARD_FLASH_ADDR_ZERO     FLASH_ADDR_FIRM
-#define BOARD_FLASH_APP_START     FLASH_ADDR_FIRM
-#define BOARD_UF2_FAMILY_ID       0xFFFF0002
-
+#define BOARD_FLASH_ADDR_ZERO       FLASH_ADDR_FIRM
+#define BOARD_FLASH_APP_START       FLASH_ADDR_FIRM
+#define BOARD_UF2_FAMILY_ID         0xFFFF0002
+#define BOARD_UF2_FAMILY_ID_SLOT_S  0xFFFF0010
+#define BOARD_UF2_FAMILY_ID_SLOT_E  0xFFFF0015
 
 
 // Help enable build to be deterministic.
