@@ -265,6 +265,11 @@ bool gifSetKeycode(uint16_t keycode)
       eepromWriteByte(HW_EEPROM_SLOT_RUN, slot_run_req);      
       break;          
 
+    case UI_KC_SLOT_DEL:
+      flashErase(SLOT_ADDRS[slot_run_req], 10);
+      slot_run = SLOT_MAX_CH;
+      break;
+
     default:
       ret = false;
       break;
