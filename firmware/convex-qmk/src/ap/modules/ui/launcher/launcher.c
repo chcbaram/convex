@@ -14,7 +14,7 @@
 
 static void uiInit(void);
 // static void uiDeInit(void);
-static void uiEvent(lv_event_t * e);
+// static void uiEvent(lv_event_t * e);
 static void uiThread(void const *arg);
 static bool eventReceive(event_t *p_event);
 
@@ -241,6 +241,10 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
     {
       return false;
     }
+    if (gifSetKeycode(keycode))
+    {
+      return false;
+    }    
   } 
 
   if (cur_run_id == APP_ID_MATRIX)
@@ -251,15 +255,15 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
   return true; 
 }
 
-void uiEvent(lv_event_t * e)
-{
-  lv_event_code_t code = lv_event_get_code(e);
+// void uiEvent(lv_event_t * e)
+// {
+//   lv_event_code_t code = lv_event_get_code(e);
 
-  logPrintf("key event  %d\n", code);
-  logPrintf("id  %d\n", (int)lv_event_get_user_data(e));
+//   logPrintf("key event  %d\n", code);
+//   logPrintf("id  %d\n", (int)lv_event_get_user_data(e));
 
-  req_run_id = (int)lv_event_get_user_data(e);
-}
+//   req_run_id = (int)lv_event_get_user_data(e);
+// }
 
 void uiInit(void)
 {
@@ -294,7 +298,7 @@ void uiInit(void)
     lv_obj_center(label);
     lv_group_add_obj(g, btn);
 
-    lv_obj_add_event_cb(btn, uiEvent, LV_EVENT_CLICKED, (void *)i);
+    // lv_obj_add_event_cb(btn, uiEvent, LV_EVENT_CLICKED, (void *)i);
     // lv_obj_set_style_text_font(label, &neo, LV_PART_MAIN);    
   }
   lv_indev_set_group(indev_keypad, g);

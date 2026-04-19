@@ -235,7 +235,7 @@ void lcdSetBackLight(uint8_t value)
   }
 
 #ifdef _USE_HW_PWM
-  pwmWrite(LCD_BL_PWM,  brightness_to_pwm(value, 2.2f));
+  pwmWrite(LCD_BL_PWM,  brightness_to_pwm(value, 2.0f));
 #else
   if (cfg.backlight_value > 0)
   {

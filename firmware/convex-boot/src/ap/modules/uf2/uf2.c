@@ -125,7 +125,7 @@ void uf2_flash_write(WriteState *state, uint32_t addr, void const *data, uint32_
 void uf2_flash_complete(WriteState *state)
 {
   uint16_t err_code;
-
+  
   if (is_jump_fw)
     return;
     
@@ -146,7 +146,7 @@ void uf2_flash_complete(WriteState *state)
   }
 }
 
-void uf2_flash_write_gif(WriteState *state, uint8_t slot, uint32_t addr, void const *data, uint32_t len)
+bool uf2_flash_write_gif(WriteState *state, uint8_t slot, uint32_t addr, void const *data, uint32_t len)
 {
   uint32_t flash_addr;
   bool ret = true;
@@ -158,6 +158,11 @@ void uf2_flash_write_gif(WriteState *state, uint8_t slot, uint32_t addr, void co
     _flash_len = 0;
   }
 
+  if ((addr + len) > FLASH_SIZE_SLOT)
+  {    
+    return false;
+  }
+
   flash_addr = (FLASH_ADDR_UPDATE_SLOT + slot * FLASH_SIZE_SLOT) + FLASH_SIZE_TAG + addr;
 
   if (!uf2_flash_is_blank(flash_addr, len))
@@ -166,6 +171,7 @@ void uf2_flash_write_gif(WriteState *state, uint8_t slot, uint32_t addr, void co
     if (!ret)
     {
       logPrintf("[%s] flashErase(0x%X, %d)\n", ret?"OK":"E_", flash_addr, len);
+      return false;
     }
   }
   ret = flashWrite(flash_addr, (uint8_t *)data, len);
@@ -176,6 +182,8 @@ void uf2_flash_write_gif(WriteState *state, uint8_t slot, uint32_t addr, void co
 
   _flash_crc  = utilCalcCRC(_flash_crc, (uint8_t *)data, len);
   _flash_len += len;
+
+  return ret;
 }
 
 void uf2_flash_flush_slot(WriteState *state, uint8_t slot)
@@ -288,7 +296,24 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
   {
     is_slot  = true;
     slot_num = bl->familyID - BOARD_UF2_FAMILY_ID_SLOT_S;
-    uf2_flash_write_gif(state, slot_num, bl->targetAddr, bl->data, bl->payloadSize);
+    if (!uf2_flash_write_gif(state, slot_num, bl->targetAddr, bl->data, bl->payloadSize))
+    {
+      if (uf2_info.state != 3)
+      {
+        logPrintf("[E_] uf2_flash_write_gif()\n");
+        logPrintf("         addr : 0x%X\n", bl->targetAddr);
+
+        lcd_req_info_t lcd_info;
+
+        lcd_info.mode = LCD_INFO_MODE_ERROR;
+        lcd_info.title_str = "ERROR";
+        lcd_info.info_str = "ERR_BOOT_SLOT_SIZE";
+        lcdUpdate(true, &lcd_info);        
+      }
+
+      uf2_info.state = 3;
+      return -1;
+    }
   }
   else
   {
@@ -348,9 +373,7 @@ int uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state)
     else
       info.title_str = "Copy...FIRM";
     info.percent = uf2_info.percent; 
-    lcdUpdate(false, &info);
-    
-    
+    lcdUpdate(false, &info);      
   }
 
   return BPB_SECTOR_SIZE;

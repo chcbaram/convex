@@ -72,6 +72,7 @@
 #define _USE_HW_EEPROM
 #define      HW_EEPROM_USER        (8 * 1024)
 #define      HW_EEPROM_INIT_APP    (HW_EEPROM_USER + 0)
+#define      HW_EEPROM_SLOT_RUN    (HW_EEPROM_USER + 1)
 
 #define _USE_HW_I2C
 #define      HW_I2C_MAX_CH          1
@@ -94,8 +95,8 @@
 #define      HW_EVENT_NODE_MAX      64
 
 #define _USE_HW_FS
-#define      HW_FS_FLASH_OFFSET     0x90800000 
-#define      HW_FS_MAX_SIZE         (8*1024*1024)
+#define      HW_FS_FLASH_OFFSET     0x90C00000 
+#define      HW_FS_MAX_SIZE         (4*1024*1024)
 
 #define _USE_HW_PWM
 #define      HW_PWM_MAX_CH          PWM_PIN_MAX
@@ -111,7 +112,8 @@
 #define FLASH_SIZE_TAG              0x400
 #define FLASH_SIZE_VEC              0x400
 #define FLASH_SIZE_VER              0x400
-#define FLASH_SIZE_SLOT             (1*1024*1024 - 1*1024)
+#define FLASH_SIZE_FIRM             (2*1024*1024 - 256*1024)
+#define FLASH_SIZE_SLOT             (2*1024*1024)
 
 #define FLASH_ADDR_BOOT             0x08000000
 #define FLASH_ADDR_FIRM             0x08040000

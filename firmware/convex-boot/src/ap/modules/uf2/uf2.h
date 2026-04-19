@@ -49,7 +49,7 @@ extern "C"
 // Flash size is constrained by RAM, a 4MB size requires 2kB RAM, see MAX_BLOCKS
 // Largest tested is 256MB, with 0x300000 blocks (1.5GB), 64 sectors per cluster
 #ifndef CFG_UF2_FLASH_SIZE
-#define CFG_UF2_FLASH_SIZE (4 * 1024 * 1024)
+#define CFG_UF2_FLASH_SIZE (16 * 1024 * 1024)
 #endif
 
 // Number of 512-byte blocks in the exposed filesystem, default is just under 32MB

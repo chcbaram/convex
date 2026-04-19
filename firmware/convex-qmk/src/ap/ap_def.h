@@ -13,7 +13,8 @@
 #define UI_KC_MTX       QK_KB_4
 #define UI_KC_CLR       QK_KB_5
 #define UI_KC_DEL       QK_KB_6
-
+#define UI_KC_SLOT      QK_KB_7
+#define UI_KC_SLOT_NXT  QK_KB_8
 
 enum
 {

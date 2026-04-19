@@ -288,7 +288,7 @@ uint16_t bootJumpFirm(void)
 
       resetSetBootMode(0);
 
-      bspDeInit();
+      bspDeInit();     
 
       (*jump_func)();
     }

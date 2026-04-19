@@ -5,7 +5,8 @@
 
 
 // --- 드라이브 설정 ---
-#define FLASH_DRIVE_LETTER 'F'
+#define SLOT_DRIVE_LETTER  'F'
+#define SLOT_MAX_CH         4
 
 
 // --- UF2 슬롯 메모리 주소 설정 (CONVEX UF2 생성기 기준) ---
@@ -16,12 +17,10 @@
 
 
 
-static const uint32_t SLOT_ADDRS[] = {SLOT1_ADDR, SLOT2_ADDR, SLOT3_ADDR, SLOT4_ADDR};
-
-
 
 // --- 디자인 설정 ---
-#define COLOR_BG lv_color_hex(0x000000) // GIF 몰입감을 위해 블랙 배경
+#define COLOR_BG lv_color_hex(0x000000) 
+
 
 // --- 앱 상태 관리 ---
 typedef struct
@@ -38,10 +37,17 @@ typedef struct {
     uint32_t size;      // 헤더에서 읽어온 파일 크기
 } flash_file_t;
 
-static gif_state_t state;
+static gif_state_t    state;
+static lv_obj_t      *root         = NULL;
+static uint8_t        slot_run     = SLOT_MAX_CH;
+static uint8_t        slot_run_req = 0;
+static const uint32_t SLOT_ADDRS[] = {SLOT1_ADDR, SLOT2_ADDR, SLOT3_ADDR, SLOT4_ADDR};
 
-// --- 전역 UI 핸들 ---
-static lv_obj_t *root = NULL;
+
+LV_FONT_DECLARE(convex32);
+
+
+
 
 static void *flash_fs_open(lv_fs_drv_t *drv, const char *path, lv_fs_mode_t mode)
 {
@@ -131,7 +137,7 @@ void flash_fs_init(void)
 {
   static lv_fs_drv_t drv;
   lv_fs_drv_init(&drv);
-  drv.letter   = FLASH_DRIVE_LETTER;
+  drv.letter   = SLOT_DRIVE_LETTER;
   drv.open_cb  = flash_fs_open;
   drv.read_cb  = flash_fs_read;
   drv.close_cb = flash_fs_close;
@@ -143,20 +149,64 @@ void flash_fs_init(void)
 // --- GIF 로드 함수 ---
 static void load_gif_from_slot(uint8_t slot_idx)
 {
+  uint32_t slot_base;
+  uint32_t file_size = 0;
+  bool file_exists = false;
+
+
   if (slot_idx >= 4 || root == NULL) return;
 
-  if (state.gif_obj)
+
+  slot_base = SLOT_ADDRS[slot_idx];
+
+
+  // 헤더에서 사이즈 읽기 시도
+  if (flashRead(slot_base + 16, (uint8_t *)&file_size, 4))
   {
-    lv_obj_delete(state.gif_obj);
-    state.gif_obj = NULL;
+    if (file_size > 0 && file_size < FLASH_SIZE_SLOT)
+    {
+      file_exists = true;
+    }
   }
 
-  char path[32];
-  snprintf(path, sizeof(path), "F:slot%d.gif", slot_idx + 1);
+  if (file_exists)
+  {
+    // 3-A. GIF 파일이 존재하는 경우
+    char path[32];
+    snprintf(path, sizeof(path), "F:slot%d.gif", slot_idx + 1);
 
-  state.gif_obj = lv_gif_create(root);
-  lv_gif_set_src(state.gif_obj, path); // 경로로 로드
-  lv_obj_center(state.gif_obj);
+    if (state.gif_obj)
+    {
+      lv_obj_delete(state.gif_obj);
+      state.gif_obj = NULL;
+    }    
+    state.gif_obj = lv_gif_create(root);
+    lv_gif_set_src(state.gif_obj, path);
+    lv_obj_center(state.gif_obj);
+
+    file_exists = lv_gif_is_loaded(state.gif_obj);
+  }
+
+  if (!file_exists)
+  {
+    if (state.gif_obj)
+    {
+      lv_obj_delete(state.gif_obj);
+      state.gif_obj = NULL;
+    }    
+    // 3-B. GIF 파일이 없는 경우 안내 문구 표시
+    state.gif_obj = lv_label_create(root);
+    lv_label_set_text_fmt(state.gif_obj, "GIF SLOT %d", slot_idx + 1);
+
+    // 스타일 설정 (가독성을 위해)
+    lv_obj_set_style_text_color(state.gif_obj, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_style_text_align(state.gif_obj, LV_TEXT_ALIGN_CENTER, 0);
+
+    // 선언된 convex32 폰트 적용 (필요 시)
+    lv_obj_set_style_text_font(state.gif_obj, &convex32, 0);
+
+    lv_obj_center(state.gif_obj);
+  }
 
   state.current_slot = slot_idx;
 }
@@ -177,14 +227,11 @@ static void uiInit(void)
   logPrintf("IN Free memory: %u bytes (%d%% used)\n", mon.free_size, mon.used_pct);
 
   root = lv_obj_create(lv_screen_active());
-  lv_obj_set_size(root, 284, 76); // 디스플레이 크기 고정
+  lv_obj_set_size(root, LCD_WIDTH, LCD_HEIGHT); 
   lv_obj_set_style_bg_color(root, COLOR_BG, 0);
   lv_obj_set_style_pad_all(root, 0, 0);
   lv_obj_set_style_border_width(root, 0, 0);
   lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
-
-  // 초기 실행 시 SLOT 1 로드
-  load_gif_from_slot(0);
 }
 
 static void uiDeInit(void)
@@ -213,25 +260,10 @@ bool gifSetKeycode(uint16_t keycode)
 
   switch (keycode)
   {
-    case KC_KP_1:
-      load_gif_from_slot(0);
-      break;          // 키패드 1번 -> SLOT 1
-    case KC_KP_2:
-      load_gif_from_slot(1);
-      break;          // 키패드 2번 -> SLOT 2
-    case KC_KP_3:
-      load_gif_from_slot(2);
-      break;          // 키패드 3번 -> SLOT 3
-    case KC_KP_4:
-      load_gif_from_slot(3);
-      break;          // 키패드 4번 -> SLOT 4
-
-    case KC_KP_ENTER: // 재생/일시정지 토글 (GIF 지원 여부에 따라 다름)
-      if (state.gif_obj)
-      {
-        // 필요 시 lv_gif_pause/resume 로직 추가 가능
-      }
-      break;
+    case UI_KC_SLOT_NXT:
+      slot_run_req = (slot_run_req + 1) % SLOT_MAX_CH;
+      eepromWriteByte(HW_EEPROM_SLOT_RUN, slot_run_req);      
+      break;          
 
     default:
       ret = false;
@@ -240,17 +272,33 @@ bool gifSetKeycode(uint16_t keycode)
   return ret;
 }
 
-// --- 메인 루프 ---
+void gifInit(void)
+{
+  slot_run = SLOT_MAX_CH;
+
+  eepromReadByte(HW_EEPROM_SLOT_RUN, &slot_run_req);
+  if (slot_run_req >= SLOT_MAX_CH)
+  {
+    slot_run_req = 0;
+  }
+}
+
 void gifMain(app_args_t *p_args)
 {
   uiInit();
+
   while (!p_args->is_exit)
   {
-    // LVGL 타이머 핸들러 호출
-    // lv_timer_handler();
+    if (slot_run_req != slot_run)
+    {
+      logPrintf("Slot Change : %d -> %d\n", slot_run, slot_run_req);
+      slot_run = slot_run_req;
+      load_gif_from_slot(slot_run);
+    }
     lvglUpdate();
     delay(5);
   }
+
   uiDeInit();
 }
 
@@ -260,7 +308,7 @@ app_info_t *gifGetAppInfo(void)
   static app_info_t info = {
     .id       = APP_ID_GIF,
     .name     = "GIF PLAYER",
-    .init     = NULL,
+    .init     = gifInit,
     .run_func = gifMain,
   };
   return &info;

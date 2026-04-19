@@ -187,7 +187,7 @@ bool ws2812Refresh(void)
 {
   if (is_busy)
   {
-    is_req_dma = true;
+    is_req_dma = true;    
   }
   else
   {

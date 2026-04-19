@@ -7,7 +7,7 @@
 
 #define NAME_DEF(x)  x, #x
 
-#define PWM_TIM15_KHZ    5
+#define PWM_TIM15_KHZ    1
 
 
 

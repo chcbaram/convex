@@ -74,7 +74,7 @@
 #define FLASH_SIZE_VEC              0x400
 #define FLASH_SIZE_VER              0x400
 #define FLASH_SIZE_FIRM             (2*1024*1024 - 256*1024)
-#define FLASH_SIZE_SLOT             (1*1024*1024)
+#define FLASH_SIZE_SLOT             (2*1024*1024)
 
 #define FLASH_ADDR_BOOT             0x08000000
 #define FLASH_ADDR_FIRM             0x08040000

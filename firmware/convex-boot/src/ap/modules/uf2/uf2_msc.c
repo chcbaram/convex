@@ -70,6 +70,7 @@ void tud_msc_write10_complete_cb(uint8_t lun)
 {
   (void)lun;
 
+
   // abort the DFU, uf2 block failed integrity check
   if (_wr_state.aborted)
   {

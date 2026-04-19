@@ -4,7 +4,7 @@
 static void appInit(void);
 static void appMain(app_args_t *p_args);
 static void uiInit(void);
-static void ui_clock_destroy(void);
+static void uiDeInit(void);
 
 static app_info_t app_info = {
   .id       = APP_ID_CLOCK,
@@ -284,7 +284,7 @@ void uiInit(void)
 }
 
 // UI 제거
-void ui_clock_destroy(void)
+void uiDeInit(void)
 {
 	if (clock_timer) {
 		lv_timer_del(clock_timer);
@@ -353,7 +353,7 @@ void appMain(app_args_t *p_args)
   }
   p_args->is_exit = false;
 
-  ui_clock_destroy();
+  uiDeInit();
 }
 
 app_info_t *clockGetAppInfo(void)

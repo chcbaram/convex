@@ -10,13 +10,15 @@
     "qmk_lighting"
   ],
   "customKeycodes": [
-      {"name": "UI_APP+", "title": "UI_APP+",   "shortName": "UI_APP+"},
-      {"name": "UI_APP-", "title": "UI_APP-",   "shortName": "UI_APP-"},
-      {"name": "UI_CLK",  "title": "UI_CLOCK",  "shortName": "UI_CLK"},
-      {"name": "UI_CAL",  "title": "UI_CALC",   "shortName": "UI_CAL"},
-      {"name": "UI_MTX",  "title": "UI_MATRIX", "shortName": "UI_MTX"},
-      {"name": "UI_CLR",  "title": "UI_CLEAR",  "shortName": "UI_CLR"},
-      {"name": "UI_DEL",  "title": "UI_DEL",    "shortName": "UI_DEL"}
+      {"name": "UI_APP+",     "title": "UI_APP+",       "shortName": "UI_APP+"},
+      {"name": "UI_APP-",     "title": "UI_APP-",       "shortName": "UI_APP-"},
+      {"name": "UI_CLK",      "title": "UI_CLOCK",      "shortName": "UI_CLK"},
+      {"name": "UI_CAL",      "title": "UI_CALC",       "shortName": "UI_CAL"},
+      {"name": "UI_MTX",      "title": "UI_MATRIX",     "shortName": "UI_MTX"},
+      {"name": "UI_CLR",      "title": "UI_CLEAR",      "shortName": "UI_CLR"},
+      {"name": "UI_DEL",      "title": "UI_DEL",        "shortName": "UI_DEL"},
+      {"name": "UI_SLT",      "title": "UI_SLOT",       "shortName": "UI_SLT"},
+      {"name": "UI_SLT_NXT",  "title": "UI_SLOT_NEXT",  "shortName": "UI_SLT_NXT"}
     ],  
   "menus": [
     {

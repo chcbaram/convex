@@ -121,6 +121,14 @@ void lcdUpdate(bool req, lcd_req_info_t *p_req_info)
       {
         lcdPrintfRect(0, 20, LCD_WIDTH, LCD_HEIGHT - 20, white, 16, LCD_ALIGN_H_CENTER|LCD_ALIGN_V_CENTER, 
                       p_req_info->info_str);    
+
+        if (p_req_info->mode == LCD_INFO_MODE_ERROR)
+        {
+          if (keysGetPressed(0, 0))
+          {
+            resetToReset();
+          }
+        }
       }
 
       lcdRequestDraw();
