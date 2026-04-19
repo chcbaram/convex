@@ -163,6 +163,7 @@ typedef struct
 bool lcdInit(void);
 bool lcdIsInit(void);
 void lcdReset(void);
+bool lcdSaveCfg(void);
 
 uint8_t lcdGetBackLight(void);
 void    lcdSetBackLight(uint8_t value);

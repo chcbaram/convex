@@ -306,7 +306,7 @@ void gifMain(app_args_t *p_args)
 app_info_t *gifGetAppInfo(void)
 {
   static app_info_t info = {
-    .id       = APP_ID_GIF,
+    .id       = APP_ID_SLOT,
     .name     = "GIF PLAYER",
     .init     = gifInit,
     .run_func = gifMain,

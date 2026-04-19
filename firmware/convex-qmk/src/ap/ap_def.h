@@ -15,6 +15,8 @@
 #define UI_KC_DEL       QK_KB_6
 #define UI_KC_SLOT      QK_KB_7
 #define UI_KC_SLOT_NXT  QK_KB_8
+#define UI_KC_BL_P      QK_KB_9
+#define UI_KC_BL_M      QK_KB_10
 
 enum
 {
@@ -22,7 +24,7 @@ enum
   APP_ID_CLOCK,
   APP_ID_MATRIX,
   APP_ID_CALC,
-  APP_ID_GIF,
+  APP_ID_SLOT,
   APP_ID_MAX
 };
 

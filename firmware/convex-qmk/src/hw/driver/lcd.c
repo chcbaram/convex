@@ -4,11 +4,11 @@
 
 #ifdef _USE_HW_LCD
 #include "gpio.h"
+#include "eeprom.h"
 #include "resize.h"
 #include "hangul/han.h"
 #include "lcd/lcd_fonts.h"
 #include "lcd/st7789.h"
-#include "nvs.h"
 
 #ifdef _USE_HW_PWM
 #include "pwm.h"
@@ -17,6 +17,16 @@
 #ifdef _USE_HW_ADC
 #include "adc.h"
 #endif
+
+#ifdef _USE_HW_RTOS
+#define lock()      xSemaphoreTake(mutex_lock, portMAX_DELAY);
+#define unLock()    xSemaphoreGive(mutex_lock);
+static SemaphoreHandle_t mutex_lock;
+#else
+#define lock()      
+#define unLock()    
+#endif
+
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) { int16_t t = a; a = b; b = t; }
@@ -50,7 +60,7 @@ static void disEngFont(int x, int y, char ch, lcd_font_t *font, uint16_t textcol
 static void lcdDrawLineBuffer(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color, lcd_pixel_t *line);
 static bool lcdInitCfg(void);
 static bool lcdLoadCfg(void);
-static bool lcdSaveCfg(void);
+
 
 #ifdef _USE_HW_CLI
 static void cliLcd(cli_args_t *args);
@@ -92,7 +102,6 @@ static uint16_t __attribute__((aligned(64))) font_dst_buffer[LCD_FONT_RESIZE_WID
 
 static lcd_font_t *font_tbl[LCD_FONT_MAX] = { &font_07x10, &font_11x18, &font_16x26, &font_hangul};
 static lcd_cfg_t cfg;
-static nvs_cfg_t nvs_cfg;
 static void (*draw_callback)(void) = NULL;
 
 #if HW_LCD_LOGO == 1
@@ -121,12 +130,17 @@ void transferDoneISR(void)
 
 bool lcdInit(void)
 {
+
+#ifdef _USE_HW_RTOS
+  mutex_lock = xSemaphoreCreateMutex();
+#endif
+
   is_init = st7789Init();
   st7789InitDriver(&lcd);
 
   lcdInitCfg();
   lcdLoadCfg();
-  // lcdSetBackLight(cfg.backlight_value);
+  lcdSetBackLight(cfg.backlight_value);
   lcdSetRotation(rotation_mode);
 
   lcd.setCallBack(transferDoneISR);
@@ -166,19 +180,19 @@ bool lcdInitCfg(void)
 {
   cfg.backlight_value = 60;
   cfg.rotation_mode = 4;  
-
-  nvs_cfg.p_name = LCD_CFG_NAME;
-  nvs_cfg.p_data = &cfg;
-  nvs_cfg.length = sizeof(cfg);
-
   return true;
 }
 
 bool lcdLoadCfg(void)
 {
   bool ret = true;
+  uint8_t backlight_value;
 
-  ret = nvsLoad(&nvs_cfg);
+  ret = eepromReadByte(HW_EEPROM_LCD_BL, &backlight_value);
+  if (ret)
+  {
+    cfg.backlight_value = constrain(backlight_value, 0, 100);
+  }
 
   return ret;
 }
@@ -186,9 +200,11 @@ bool lcdLoadCfg(void)
 bool lcdSaveCfg(void)
 {
   bool ret = true;
-
-  ret = nvsSave(&nvs_cfg);
-
+  
+  lock();
+  ret = eepromWriteByte(HW_EEPROM_LCD_BL, cfg.backlight_value);
+  unLock();
+  
   return ret;
 }
 
@@ -229,6 +245,7 @@ void lcdSetBackLight(uint8_t value)
 {
   value = constrain((int8_t)value, 0, 100);
 
+  lock();
   if (value != cfg.backlight_value)
   {
     cfg.backlight_value = value;
@@ -246,6 +263,7 @@ void lcdSetBackLight(uint8_t value)
     gpioPinWrite(_PIN_DEF_BL_CTL, _DEF_LOW);
   }
 #endif
+  unLock();
 }
 
 LCD_OPT_DEF uint32_t lcdReadPixel(uint16_t x_pos, uint16_t y_pos)

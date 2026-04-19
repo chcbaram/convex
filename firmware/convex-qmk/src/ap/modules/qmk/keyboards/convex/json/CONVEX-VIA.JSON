@@ -18,7 +18,9 @@
       {"name": "UI_CLR",      "title": "UI_CLEAR",      "shortName": "UI_CLR"},
       {"name": "UI_DEL",      "title": "UI_DEL",        "shortName": "UI_DEL"},
       {"name": "UI_SLT",      "title": "UI_SLOT",       "shortName": "UI_SLT"},
-      {"name": "UI_SLT_NXT",  "title": "UI_SLOT_NEXT",  "shortName": "UI_SLT_NXT"}
+      {"name": "UI_SLT_NXT",  "title": "UI_SLOT_NEXT",  "shortName": "UI_SLT_NXT"},
+      {"name": "UI_BL_P",     "title": "UI_BL_P",       "shortName": "UI_BL_P"},
+      {"name": "UI_BL_M",     "title": "UI_BL_M",       "shortName": "UI_BL_M"}
     ],  
   "menus": [
     {

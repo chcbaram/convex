@@ -73,6 +73,7 @@
 #define      HW_EEPROM_USER        (8 * 1024)
 #define      HW_EEPROM_INIT_APP    (HW_EEPROM_USER + 0)
 #define      HW_EEPROM_SLOT_RUN    (HW_EEPROM_USER + 1)
+#define      HW_EEPROM_LCD_BL      (HW_EEPROM_USER + 10)
 
 #define _USE_HW_I2C
 #define      HW_I2C_MAX_CH          1

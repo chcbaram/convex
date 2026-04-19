@@ -64,6 +64,8 @@ void via_qmk_lcd_init(void)
     eeconfig_flush_color_lcd(true);
   }   
 
+  color_config[COLOR_TYPE_LCD].hsv.v  = lcdGetBackLight();
+
   if (color_config[COLOR_TYPE_TIME].mode != 1)
   {
     RGB rgb;
@@ -111,8 +113,12 @@ bool eventReceive(event_t *p_event)
 {
   if (p_event->code == EVENT_UI_READY)
   {
-    is_ui_ready = true;
-    lcd_set_pwm(color_config[COLOR_TYPE_LCD].hsv.v); 
+    is_ui_ready = true;    
+  }
+  if (p_event->code == EVENT_CHG_BL_LEVEL)
+  {
+    lcdSetBackLight(constrain(p_event->data, 8, 100));  
+    lcdSaveCfg();
   }
   return true;
 }
@@ -278,5 +284,5 @@ HSV rgb_to_hsv(RGB rgb)
 
 void lcd_set_pwm(uint8_t level)
 {
-  lcdSetBackLight(constrain(level, 8, 100));  
+  eventPub(EVENT_CHG_BL_LEVEL, constrain(level, 8, 100));
 }

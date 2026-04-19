@@ -12,20 +12,15 @@
 
 
 
-static void uiInit(void);
-// static void uiDeInit(void);
-// static void uiEvent(lv_event_t * e);
+
 static void uiThread(void const *arg);
 static bool eventReceive(event_t *p_event);
 
-
-extern lv_indev_t * indev_keypad;
 
 static uint8_t     app_cnt = 0;
 static app_info_t *p_app_info[APP_MAX_CNT];
 static uint8_t     req_run_id = APP_ID_NONE;
 static uint8_t     cur_run_id = APP_ID_NONE;
-static lv_obj_t   *main_disp  = NULL;
 static bool        is_ready   = false;
 static bool        is_app_run = false;
 static bool        is_qmk_suspend = false;
@@ -60,8 +55,6 @@ bool launcherInit(void)
   p_app_info[app_cnt++] = gifGetAppInfo();
   
   lvglInit();
-
-  uiInit();
 
   ret = threadCreate("ui", uiThread, NULL, _HW_DEF_THREAD_MODULE_PRI, _HW_DEF_THREAD_MODULE_STACK);
   assert(ret);
@@ -191,6 +184,7 @@ void launcherUpdate(void)
 
 bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
 {
+  uint8_t bl_level;
 
   // logPrintf("keycode : 0x%X, %d\n", keycode, record->event.pressed);
 
@@ -218,6 +212,25 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
 
       case UI_KC_MTX:
         req_run_id = APP_ID_MATRIX;        
+        break;
+
+      case UI_KC_SLOT:
+        req_run_id = APP_ID_SLOT;        
+        break;
+
+      case UI_KC_BL_P:
+        bl_level = constrain(lcdGetBackLight() + 5, 8, 100);
+        lcdSetBackLight(bl_level);
+        lcdSaveCfg();
+        break;
+
+      case UI_KC_BL_M:
+        if (lcdGetBackLight() > 8)
+        {        
+          bl_level = constrain(lcdGetBackLight() - 5, 8, 100);
+          lcdSetBackLight(bl_level);
+          lcdSaveCfg();
+        }
         break;
 
       default:
@@ -254,65 +267,6 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
 
   return true; 
 }
-
-// void uiEvent(lv_event_t * e)
-// {
-//   lv_event_code_t code = lv_event_get_code(e);
-
-//   logPrintf("key event  %d\n", code);
-//   logPrintf("id  %d\n", (int)lv_event_get_user_data(e));
-
-//   req_run_id = (int)lv_event_get_user_data(e);
-// }
-
-void uiInit(void)
-{
-	lv_theme_t * th = lv_theme_default_init(NULL,
-		lv_palette_main(LV_PALETTE_PURPLE),
-		lv_palette_main(LV_PALETTE_RED),
-		true,
-		LV_FONT_DEFAULT);
-	lv_disp_set_theme(NULL, th);
-
-  main_disp = lv_obj_create(lv_screen_active());
-  lv_obj_set_size(main_disp, LCD_WIDTH, LCD_HEIGHT);
-  lv_obj_set_scroll_snap_x(main_disp, LV_SCROLL_SNAP_CENTER);
-  lv_obj_set_scroll_snap_y(main_disp, LV_SCROLL_SNAP_CENTER);
-  lv_obj_set_flex_flow(main_disp, LV_FLEX_FLOW_ROW);
-  lv_obj_align(main_disp, LV_ALIGN_CENTER, 0, 0);
-  lv_obj_set_scrollbar_mode(main_disp, LV_SCROLLBAR_MODE_OFF);
-  lv_obj_set_scroll_dir(main_disp, LV_DIR_HOR);
-
-  // lv_obj_set_style_text_font(main_disp, &neo, LV_PART_MAIN);
-  lv_obj_set_style_text_font(main_disp, &convex20, LV_PART_MAIN);
-
-  lv_group_t * g = lv_group_create();
-
-  for (int i = 0; i < app_cnt; i++)
-  {
-    lv_obj_t *btn = lv_button_create(main_disp);
-    lv_obj_set_size(btn, 150, lv_pct(80));
-
-    lv_obj_t *label = lv_label_create(btn);
-    lv_label_set_text_fmt(label, p_app_info[i]->name);
-    lv_obj_center(label);
-    lv_group_add_obj(g, btn);
-
-    // lv_obj_add_event_cb(btn, uiEvent, LV_EVENT_CLICKED, (void *)i);
-    // lv_obj_set_style_text_font(label, &neo, LV_PART_MAIN);    
-  }
-  lv_indev_set_group(indev_keypad, g);
-
-  lv_obj_scroll_to_view(lv_obj_get_child(main_disp, 0), LV_ANIM_OFF);
-  lv_group_focus_obj(lv_obj_get_child(main_disp, 0));
-  lv_obj_update_snap(main_disp, LV_ANIM_ON);
-}
-
-// void uiDeInit(void)
-// {
-//   lv_obj_delete(main_disp);
-//   main_disp = NULL;
-// }
 
 void uiThread(void const *arg)
 {

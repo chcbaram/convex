@@ -12,6 +12,7 @@ typedef enum
   EVENT_QMK_ENABLE,
   EVENT_QMK_SUSPEND,
   EVENT_QMK_RESUME,
+  EVENT_CHG_BL_LEVEL,
   EVENT_MAX,  
 } EventCode_t;
 
