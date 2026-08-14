@@ -248,6 +248,39 @@ static void uiDeInit(void)
   logPrintf("OUT Free memory: %u bytes (%d%% used)\n", mon.free_size, mon.used_pct);
 }
 
+// --- 슬롯 삭제 ---
+static void delete_slot(uint8_t slot_idx)
+{
+  uint32_t slot_base;
+  uint32_t file_size = 0;
+  uint32_t erase_size;
+
+
+  if (slot_idx >= SLOT_MAX_CH) return;
+
+  slot_base = FLASH_ADDR_UPDATE_SLOT + (slot_idx * FLASH_SIZE_SLOT);
+
+  // 실제로 기록된 크기만큼만 지운다. 슬롯 전체(2MB)를 지우면 64KB 섹터 32개라
+  // 5초 가까이 걸려 키 입력 처리가 그동안 멈춘다.
+  if (flashRead(SLOT_ADDRS[slot_idx] + 16, (uint8_t *)&file_size, 4) != true)
+  {
+    file_size = 0;
+  }
+  if (file_size == 0xFFFFFFFF || file_size > FLASH_SIZE_SLOT)
+  {
+    file_size = 0;
+  }
+
+  // 헤더만 지우면 뒤쪽 데이터가 남아, 이후 새 GIF 를 쓸 때 지워지지 않은
+  // 영역에 덮어쓰게 되므로 기록된 범위 전체를 지운다.
+  erase_size = FLASH_SIZE_TAG + 32 + file_size;
+
+  if (flashErase(slot_base, erase_size) != true)
+  {
+    logPrintf("[E_] delete_slot(%d)\n", slot_idx);
+  }
+}
+
 // --- 키 입력 처리 (슬롯 변경) ---
 bool gifSetKeycode(uint16_t keycode)
 {
@@ -266,10 +299,7 @@ bool gifSetKeycode(uint16_t keycode)
       break;          
 
     case UI_KC_SLOT_DEL:
-      // 슬롯 전체를 지운다. 예전처럼 앞쪽 64KB 만 지우면 헤더만 사라지고
-      // 뒤쪽 데이터가 남아, 다음에 새 GIF 를 쓸 때 지워지지 않은 영역에
-      // 덮어쓰게 되어 데이터가 깨진다.
-      flashErase(FLASH_ADDR_UPDATE_SLOT + (slot_run_req * FLASH_SIZE_SLOT), FLASH_SIZE_SLOT);
+      delete_slot(slot_run_req);
       slot_run = SLOT_MAX_CH;
       break;
 
