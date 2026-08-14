@@ -99,7 +99,8 @@
   .slot .desc { color: var(--muted); flex: 1; }
   .slot .warn { color: var(--warn); font-weight: 600; }
   .linkbtn { border: none; background: none; color: var(--accent); cursor: pointer;
-             font: inherit; font-weight: 600; font-size: 13px; padding: 0 0 0 8px; }
+             font: inherit; font-weight: 600; font-size: 13px; padding: 0 2px; }
+  .linkbtn:hover { text-decoration: underline; }
 
   .fw-meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
   .fw-meta span { margin-right: 14px; }
@@ -149,9 +150,10 @@
     <input type="file" id="gifFile" accept=".gif">
     <p class="hint" id="gifHint">LCD 해상도는 <b>284 × 76</b> 입니다. 슬롯당 최대 약 2MB.</p>
     <p class="hint" id="gifDim"></p>
-    <p class="hint">예제 —
-      <a href="#" data-sample="sample-image.gif">이미지</a> ·
-      <a href="#" data-sample="sample-anim.gif">애니메이션</a>
+    <p class="hint">예제 불러오기 —
+      <button class="linkbtn" type="button" data-sample="sample-image.gif">이미지</button> ·
+      <button class="linkbtn" type="button" data-sample="sample-anim.gif">애니메이션</button>
+      <span style="color:var(--muted)">(내려받지 않고 바로 선택됩니다)</span>
     </p>
 
     <div class="preview" id="gifPreviewWrap" hidden>
@@ -621,8 +623,8 @@ async function pickedBytes() {
 }
 
 document.querySelectorAll("[data-sample]").forEach(a => {
-  a.onclick = async (e) => {
-    e.preventDefault();
+  a.onclick = async () => {
+    // 파일로 내려받지 않고 메모리로 읽어 '선택된 파일' 로 그대로 세팅한다.
     const name = a.dataset.sample;
     try {
       const res = await fetch(SAMPLE_DIR + name, { cache: "no-store" });
