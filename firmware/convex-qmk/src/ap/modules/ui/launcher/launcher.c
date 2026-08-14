@@ -6,6 +6,7 @@
 #include "app/calc/calc.h"
 #include "app/gif/gif_app.h"
 #include "app/update/update_app.h"
+#include "app/spectrum/spectrum_app.h"
 #include "fwupdate.h"
 
 
@@ -56,6 +57,7 @@ bool launcherInit(void)
   p_app_info[app_cnt++] = calcGetAppInfo();
   p_app_info[app_cnt++] = gifGetAppInfo();  
   p_app_info[app_cnt++] = testGetAppInfo();  
+  p_app_info[app_cnt++] = spectrumGetAppInfo();
   p_app_info[app_cnt++] = updateGetAppInfo();
   
   lvglInit();
@@ -282,6 +284,10 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
         req_run_id = APP_ID_SLOT;        
         break;
 
+      case UI_KC_SPEC:
+        req_run_id = APP_ID_SPECTRUM;        
+        break;
+
       case UI_KC_BL_P:
         bl_level = constrain(lcdGetBackLight() + 5, 8, 100);
         lcdSetBackLight(bl_level);
@@ -323,6 +329,11 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
       return false;
     }    
   } 
+
+  if (record->event.pressed && cur_run_id == APP_ID_SPECTRUM)
+  {
+    spectrumSetKey(record->event.key.row, record->event.key.col);
+  }
 
   if (cur_run_id == APP_ID_MATRIX)
   {

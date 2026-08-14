@@ -28,6 +28,8 @@ MAX_NOTES   = 5
 
 HW_DEF      = QMK_DIR / "src" / "hw" / "hw_def.h"
 KBD_CONFIG  = QMK_DIR / "src" / "ap" / "modules" / "qmk" / "keyboards" / "convex" / "config.h"
+# 커스텀 키코드가 펌웨어와 함께 바뀌므로 VIA 정의도 같은 버전으로 내보낸다.
+VIA_JSON    = QMK_DIR / "src" / "ap" / "modules" / "qmk" / "keyboards" / "convex" / "json" / "CONVEX-VIA.JSON"
 
 
 def crc16(data: bytes) -> int:
@@ -78,15 +80,21 @@ def main() -> None:
     if not bin_src.exists():
         raise SystemExit("%s 가 없다. 먼저 빌드할 것" % bin_src)
 
-    RELEASE_DIR.mkdir(parents=True, exist_ok=True)
+    # 버전이 쌓이면 파일이 뒤섞이므로 버전 폴더에 모아 둔다.
+    # manifest 에는 release 폴더 기준 상대 경로로 적는다.
+    ver_dir = RELEASE_DIR / version
+    ver_dir.mkdir(parents=True, exist_ok=True)
 
-    bin_name = "%s-%s.bin" % (board, version)
-    uf2_name = "%s-%s.uf2" % (board, version)
+    bin_name  = "%s/%s-%s.bin"  % (version, board, version)
+    uf2_name  = "%s/%s-%s.uf2"  % (version, board, version)
+    json_name = "%s/%s-%s.json" % (version, board, version)
 
     data = bin_src.read_bytes()
     shutil.copyfile(bin_src, RELEASE_DIR / bin_name)
     if uf2_src.exists():
         shutil.copyfile(uf2_src, RELEASE_DIR / uf2_name)
+    if VIA_JSON.exists():
+        shutil.copyfile(VIA_JSON, RELEASE_DIR / json_name)
 
     entry = {
         "version": version,
@@ -94,6 +102,7 @@ def main() -> None:
         "date":    date.today().isoformat(),
         "bin":     bin_name,
         "uf2":     uf2_name if uf2_src.exists() else None,
+        "json":    json_name if VIA_JSON.exists() else None,
         "size":    len(data),
         "crc":     "0x%04X" % crc16(data),
         "notes":   notes,
@@ -121,6 +130,7 @@ def main() -> None:
     print("board    : %s" % board)
     print("version  : %s" % version)
     print("bin      : %s (%d B)" % (bin_name, entry["size"]))
+    print("json     : %s" % entry["json"])
     print("crc      : %s" % entry["crc"])
     print("notes    : %d" % len(entry["notes"]))
     print("firmwares: %d" % len(manifest["firmwares"]))

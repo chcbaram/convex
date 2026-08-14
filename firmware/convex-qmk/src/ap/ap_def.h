@@ -18,6 +18,7 @@
 #define UI_KC_SLOT_DEL  QK_KB_9
 #define UI_KC_BL_P      QK_KB_10
 #define UI_KC_BL_M      QK_KB_11
+#define UI_KC_SPEC      QK_KB_12
 
 enum
 {
@@ -27,6 +28,7 @@ enum
   APP_ID_CALC,
   APP_ID_SLOT,
   APP_ID_UPDATE,      // 사용자가 고르는 앱이 아니다. 앱 전환 순서에서 빠진다.
+  APP_ID_SPECTRUM,
   APP_ID_MAX
 };
 

@@ -222,7 +222,7 @@
     <button class="action" id="btnFwSend" disabled>기기에 바로 전송</button>
     <div class="row">
       <button class="action ghost" id="btnFwDrive">드라이브에 바로 쓰기</button>
-      <button class="action ghost" id="btnFwDownload">UF2 다운로드</button>
+      <button class="action ghost" id="btnFwDownload">UF2 · JSON 받기 (zip)</button>
     </div>
 
     <div class="progress" id="fwProgress">
@@ -529,6 +529,122 @@ function makeUf2(payload, familyId) {
     dv.setUint32(508, 0x0AB16F30, true);
   }
   return out;
+}
+
+
+//--------------------------------------------------------------------
+// ZIP 만들기 — 펌웨어와 VIA 정의를 한 파일로 받는다.
+// 저장소에 zip 을 따로 두면 같은 내용이 두 벌이 되므로 여기서 묶는다.
+//--------------------------------------------------------------------
+const CRC32_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC32_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+async function deflateRaw(bytes) {
+  // Chrome · Edge 에만 있다. 없으면 압축 없이(STORE) 담는다.
+  if (typeof CompressionStream === "undefined") return null;
+  const cs = new CompressionStream("deflate-raw");
+  const stream = new Blob([bytes]).stream().pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function makeZip(files) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+
+  const push = (b) => { chunks.push(b); offset += b.length; };
+
+  for (const f of files) {
+    const name = enc.encode(f.name);
+    const packed = await deflateRaw(f.bytes);
+    const body = packed || f.bytes;
+    const method = packed ? 8 : 0;
+    const crc = crc32(f.bytes);
+
+    const head = new Uint8Array(30 + name.length);
+    const hv = new DataView(head.buffer);
+    hv.setUint32(0, 0x04034B50, true);
+    hv.setUint16(4, 20, true);
+    hv.setUint16(6, 0x0800, true);        // 이름은 UTF-8
+    hv.setUint16(8, method, true);
+    hv.setUint16(10, 0, true);            // 시간 · 날짜는 쓰지 않는다
+    hv.setUint16(12, 0x21, true);         // 1980-01-01
+    hv.setUint32(14, crc, true);
+    hv.setUint32(18, body.length, true);
+    hv.setUint32(22, f.bytes.length, true);
+    hv.setUint16(26, name.length, true);
+    head.set(name, 30);
+
+    const local_ofs = offset;
+    push(head);
+    push(body);
+
+    const cen = new Uint8Array(46 + name.length);
+    const cv = new DataView(cen.buffer);
+    cv.setUint32(0, 0x02014B50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, method, true);
+    cv.setUint16(12, 0, true);
+    cv.setUint16(14, 0x21, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, body.length, true);
+    cv.setUint32(24, f.bytes.length, true);
+    cv.setUint16(28, name.length, true);
+    cv.setUint32(42, local_ofs, true);
+    cen.set(name, 46);
+    central.push(cen);
+  }
+
+  const cd_ofs = offset;
+  for (const c of central) push(c);
+
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054B50, true);
+  ev.setUint16(8, central.length, true);
+  ev.setUint16(10, central.length, true);
+  ev.setUint32(12, offset - cd_ofs, true);
+  ev.setUint32(16, cd_ofs, true);
+  push(end);
+
+  const out = new Uint8Array(offset);
+  let p = 0;
+  for (const c of chunks) { out.set(c, p); p += c.length; }
+  return out;
+}
+
+async function fetchBytes(url) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("파일을 받지 못했습니다 : " + url);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+// manifest 의 경로는 버전 폴더를 포함한다. 저장 이름에는 파일명만 쓴다.
+function baseName(path) {
+  return path.split("/").pop();
+}
+
+function downloadUrl(url, name) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
 }
 
 function download(bytes, name) {
@@ -1252,14 +1368,24 @@ ui.btnFwSend.onclick = () => guard(fwProg, [ui.btnFwSend, ui.btnFwDrive, ui.btnF
 ui.btnFwDownload.onclick = () => guard(fwProg, [ui.btnFwDownload], async () => {
   const f = currentFirmware();
   if (!f) throw new Error("펌웨어를 선택해 주세요");
-  if (f.uf2) {
-    const a = document.createElement("a");
-    a.href = RELEASE_DIR + f.uf2; a.download = f.uf2; a.click();
-  } else {
-    const data = await fetchFirmwareBin(f);
-    download(makeUf2(data, FIRM_FAMILY), `${f.board}-${f.version}.uf2`);
+
+  fwProg.set(0.3, "파일을 모으는 중…");
+
+  const uf2 = f.uf2 ? await fetchBytes(RELEASE_DIR + f.uf2)
+                    : makeUf2(await fetchFirmwareBin(f), FIRM_FAMILY);
+
+  const files = [{ name: `${f.board}-${f.version}.uf2`, bytes: uf2 }];
+
+  // 커스텀 키코드가 펌웨어와 함께 바뀌므로 VIA 정의도 같은 버전으로 같이 담는다.
+  if (f.json) {
+    files.push({ name: `${f.board}-${f.version}.json`, bytes: await fetchBytes(RELEASE_DIR + f.json) });
   }
-  fwProg.done("UF2 파일을 내려받았습니다");
+
+  fwProg.set(0.7, "압축하는 중…");
+  const zip = await makeZip(files);
+
+  download(zip, `${f.board}-${f.version}.zip`);
+  fwProg.done(`${f.board}-${f.version}.zip 을 내려받았습니다 (${(zip.length / 1024).toFixed(0)} KB)`);
 });
 
 ui.btnFwDrive.onclick = () => guard(fwProg, [ui.btnFwSend, ui.btnFwDrive, ui.btnFwDownload], async () => {
