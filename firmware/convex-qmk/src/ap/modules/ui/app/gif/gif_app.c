@@ -266,7 +266,10 @@ bool gifSetKeycode(uint16_t keycode)
       break;          
 
     case UI_KC_SLOT_DEL:
-      flashErase(SLOT_ADDRS[slot_run_req], 10);
+      // 슬롯 전체를 지운다. 예전처럼 앞쪽 64KB 만 지우면 헤더만 사라지고
+      // 뒤쪽 데이터가 남아, 다음에 새 GIF 를 쓸 때 지워지지 않은 영역에
+      // 덮어쓰게 되어 데이터가 깨진다.
+      flashErase(FLASH_ADDR_UPDATE_SLOT + (slot_run_req * FLASH_SIZE_SLOT), FLASH_SIZE_SLOT);
       slot_run = SLOT_MAX_CH;
       break;
 

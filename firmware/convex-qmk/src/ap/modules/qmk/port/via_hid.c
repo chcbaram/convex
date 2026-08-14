@@ -1,5 +1,6 @@
 #include "via_hid.h"
 #include "raw_hid.h"
+#include "fwupdate.h"
 
 
 #define USE_VIA_HID_PRINT   0
@@ -37,7 +38,7 @@ static void via_hid_print(uint8_t *data, uint8_t length, bool is_resp);
 #endif
 
 
-static void via_hid_receive(uint8_t *data, uint8_t length);
+static bool via_hid_receive(uint8_t *data, uint8_t length);
 
 
 void via_hid_init(void)
@@ -50,12 +51,21 @@ void raw_hid_send(uint8_t *data, uint8_t length)
   
 }
 
-void via_hid_receive(uint8_t *data, uint8_t length)
+bool via_hid_receive(uint8_t *data, uint8_t length)
 {
+  // 웹 업데이트 리포트(0xC0)는 VIA 명령이 아니다. 큐로 넘기고 자동 응답은 막는다.
+  // DATA 는 리포트마다 응답이 필요없고, 응답 큐가 20ms 마다 하나씩만 빠져 넘치기 때문이다.
+  if (fwupdateHandleReport(data, length))
+  {
+    return false;
+  }
+
   #if USE_VIA_HID_PRINT == 1
   via_hid_print(data, length, true);
   #endif
   raw_hid_receive(data, length);
+
+  return true;
 }
 
 #if USE_VIA_HID_PRINT == 1

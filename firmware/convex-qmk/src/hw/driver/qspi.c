@@ -38,6 +38,17 @@ typedef struct {
 static bool is_init = false;
 static QSPI_HandleTypeDef hqspi;
 
+// GIF 재생(읽기)과 웹 업데이트(쓰기/erase)가 서로 다른 스레드에서 QSPI 를 쓴다.
+// 같은 HAL 핸들을 동시에 건드리면 트랜잭션이 깨지므로 공개 API 를 락으로 감싼다.
+#ifdef _USE_HW_RTOS
+static SemaphoreHandle_t qspi_mutex = NULL;
+#define qspiLock()      do { if (qspi_mutex != NULL) xSemaphoreTake(qspi_mutex, portMAX_DELAY); } while(0)
+#define qspiUnLock()    do { if (qspi_mutex != NULL) xSemaphoreGive(qspi_mutex); } while(0)
+#else
+#define qspiLock()
+#define qspiUnLock()
+#endif
+
 
 uint8_t BSP_QSPI_Init(void);
 uint8_t BSP_QSPI_DeInit(void);
@@ -67,6 +78,11 @@ bool qspiInit(void)
 {
   bool ret = true;
   QSPI_Info info;
+
+#ifdef _USE_HW_RTOS
+  if (qspi_mutex == NULL)
+    qspi_mutex = xSemaphoreCreateMutex();
+#endif
 
 
   if (BSP_QSPI_Init() == QSPI_OK)
@@ -151,21 +167,16 @@ bool qspiRead(uint32_t addr, uint8_t *p_data, uint32_t length)
 
   assert(qspiGetXipMode() == false);
 
-  if (addr >= qspiGetLength())
+  if (addr >= qspiGetLength() || (addr + length) > qspiGetLength())
   {
     return false;
-  }  
+  }
 
+  qspiLock();
   ret = BSP_QSPI_Read(p_data, addr, length);
+  qspiUnLock();
 
-  if (ret == QSPI_OK)
-  {
-    return true;
-  }
-  else
-  {
-    return false;
-  }
+  return (ret == QSPI_OK);
 }
 
 bool qspiWrite(uint32_t addr, uint8_t *p_data, uint32_t length)
@@ -175,21 +186,16 @@ bool qspiWrite(uint32_t addr, uint8_t *p_data, uint32_t length)
 
   assert(qspiGetXipMode() == false);
 
-  if (addr >= qspiGetLength())
+  if (addr >= qspiGetLength() || (addr + length) > qspiGetLength())
   {
     return false;
   }
 
+  qspiLock();
   ret = BSP_QSPI_Write(p_data, addr, length);
+  qspiUnLock();
 
-  if (ret == QSPI_OK)
-  {
-    return true;
-  }
-  else
-  {
-    return false;
-  }
+  return (ret == QSPI_OK);
 }
 
 bool qspiEraseBlock(uint32_t block_addr)
@@ -199,7 +205,9 @@ bool qspiEraseBlock(uint32_t block_addr)
 
   assert(qspiGetXipMode() == false);
 
+  qspiLock();
   ret = BSP_QSPI_Erase_Block(block_addr);
+  qspiUnLock();
 
   if (ret == QSPI_OK)
   {
@@ -218,7 +226,9 @@ bool qspiEraseSector(uint32_t sector_addr)
 
   assert(qspiGetXipMode() == false);
 
+  qspiLock();
   ret = BSP_QSPI_Erase_Sector(sector_addr);
+  qspiUnLock();
 
   if (ret == QSPI_OK)
   {
@@ -278,7 +288,9 @@ bool qspiEraseChip(void)
 
   assert(qspiGetXipMode() == false);
 
+  qspiLock();
   ret = BSP_QSPI_Erase_Chip();
+  qspiUnLock();
 
   if (ret == QSPI_OK)
   {

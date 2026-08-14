@@ -162,7 +162,8 @@ typedef struct
   uint32_t time_min;
 } usb_hid_rate_info_t;
 
-bool usbHidSetViaReceiveFunc(void (*func)(uint8_t *, uint8_t));
+bool usbHidSetViaReceiveFunc(bool (*func)(uint8_t *, uint8_t));
+bool usbHidSendReportVia(uint8_t *p_data, uint16_t length);
 bool usbHidSendReport(uint8_t *p_data, uint16_t length);
 bool usbHidSendReportEXK(uint8_t *p_data, uint16_t length);
 bool usbHidSendMouseReport(uint8_t buttons, int8_t x, int8_t y, int8_t wheel);

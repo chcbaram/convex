@@ -119,7 +119,9 @@ static via_report_info_t     via_report_q_buf[128];
 static uint32_t              via_report_pre_time;
 static uint32_t              via_report_time = 20;
 __ALIGN_BEGIN static uint8_t via_hid_usb_report[32] __ALIGN_END;
-static void (*via_hid_receive_func)(uint8_t *data, uint8_t length) = NULL;
+// 콜백이 true 를 반환하면 받은 리포트를 그대로 되돌려 보낸다(VIA 규약).
+// false 면 응답을 큐에 넣지 않는다. 대량 전송처럼 리포트마다 응답이 필요없는 경우에 쓴다.
+static bool (*via_hid_receive_func)(uint8_t *data, uint8_t length) = NULL;
 
 
 static qbuffer_t              report_q;
@@ -1000,19 +1002,24 @@ static uint8_t USBD_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
   uint32_t rx_size;
   rx_size = USBD_LL_GetRxDataSize(pdev, epnum);
 
+  bool need_resp = true;
+
   if (via_hid_receive_func != NULL)
   {
-    via_hid_receive_func(via_hid_usb_report, rx_size);
+    need_resp = via_hid_receive_func(via_hid_usb_report, rx_size);
   }
 
   #if 0
   USBD_LL_Transmit(pdev, HID_VIA_EP_OUT, via_hid_usb_report, sizeof(via_hid_usb_report));
   USBD_LL_PrepareReceive(pdev, HID_VIA_EP_OUT, via_hid_usb_report, sizeof(via_hid_usb_report));
   #else
-  via_report_info_t info;
-  memcpy(info.buf, via_hid_usb_report, sizeof(via_hid_usb_report));
-  qbufferWrite(&via_report_q, (uint8_t *)&info, 1);
-  via_report_pre_time = millis();
+  if (need_resp)
+  {
+    via_report_info_t info;
+    memcpy(info.buf, via_hid_usb_report, sizeof(via_hid_usb_report));
+    qbufferWrite(&via_report_q, (uint8_t *)&info, 1);
+    via_report_pre_time = millis();
+  }
   #endif
   return (uint8_t)USBD_OK;
 }
@@ -1088,10 +1095,25 @@ bool usbHidUpdateWakeUp(USBD_HandleTypeDef *pdev)
   return ret;
 }
 
-bool usbHidSetViaReceiveFunc(void (*func)(uint8_t *, uint8_t))
+bool usbHidSetViaReceiveFunc(bool (*func)(uint8_t *, uint8_t))
 {
   via_hid_receive_func = func;
   return true;
+}
+
+// VIA IN 엔드포인트로 응답을 보낸다. 수신 콜백과 무관하게 나중에 보낼 수 있어야
+// erase/검증처럼 시간이 걸리는 작업의 결과를 스레드에서 회신할 수 있다.
+bool usbHidSendReportVia(uint8_t *p_data, uint16_t length)
+{
+  via_report_info_t info;
+
+  if (length > sizeof(info.buf))
+    return false;
+
+  memset(info.buf, 0, sizeof(info.buf));
+  memcpy(info.buf, p_data, length);
+
+  return qbufferWrite(&via_report_q, (uint8_t *)&info, 1);
 }
 
 bool usbHidSendReport(uint8_t *p_data, uint16_t length)

@@ -36,6 +36,7 @@ file(GLOB SRC_FILES CONFIGURE_DEPENDS
 
   src/ap/modules/*.c
   src/ap/modules/common/*.c
+  src/ap/modules/common/fwupdate/*.c
 
   src/lib/ST/STM32_USB_Device_Library/Core/Src/*.c
   
@@ -87,6 +88,7 @@ target_include_directories(${EXECUTABLE} PRIVATE
   src  
   src/ap
   src/ap/modules
+  src/ap/modules/common/fwupdate
   src/ap/modules/ui
   src/bsp
   src/bsp/device
