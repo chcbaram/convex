@@ -267,7 +267,7 @@ flush/complete가 영원히 안 된다. 보통 첫 파일 후 리부팅되므로
 
 ## D. 수정 내역 (`fix/uf2-msc-robustness` 브랜치)
 
-부트로더(`convex-boot`) 쪽만 반영했다. 앱(`convex-qmk`) / 웹페이지 수정은 별도 브랜치에서 진행한다.
+부트로더(`convex-boot`) 부터 반영했다. 앱(`convex-qmk`) / 웹페이지 수정도 같은 브랜치에서 이어서 진행한다.
 
 | # | 항목 | 상태 | 반영 위치 |
 |---|---|---|---|
@@ -283,8 +283,8 @@ flush/complete가 영원히 안 된다. 보통 첫 파일 후 리부팅되므로
 | 10 | B-7 64KB erase 폴링 타임아웃을 `SECTOR_ERASE_MAX_TIME(3000ms)` 로 | 완료 | `qspi.c` `BSP_QSPI_Erase_Sector()` |
 | 11 | A-5 README 크기를 실제 길이와 동기화, `snprintf` 남은 크기 전달, 비종료 문자열 방어 | 완료 | `usb_msc.c` `msc_make_readme()` |
 | 12 | A-5 BPB 총 섹터를 16bit 필드로 (스펙 준수) | 완료 | `usb_msc.c` boot sector |
-| 13 | C-2 슬롯 삭제 시 슬롯 전체 erase | **앱 브랜치** | `convex-qmk` `gif_app.c` |
-| 14 | C-3 웹 생성기에서 슬롯 용량 초과 차단 | **웹 브랜치** | `index.html` |
+| 13 | C-2 슬롯 삭제 시 슬롯 전체 erase | 예정 | `convex-qmk` `gif_app.c` |
+| 14 | C-3 웹 생성기에서 슬롯 용량 초과 차단 | 예정 | `index.html` |
 
 빌드 확인: `arm-none-eabi-gcc 13.3.1`, 경고 0, text 133,360 B (부트 영역 256KB 이내).
 
