@@ -26,7 +26,7 @@ SRC_URL = ("https://upload.wikimedia.org/wikipedia/commons/0/01/"
 WIDTH   = 284
 HEIGHT  = 76
 COLORS  = 64      # 색을 줄여야 슬롯 용량과 디코딩 부담이 준다
-FRAME_MS = 90
+FRAME_MS = 160    # 11프레임이라 한 바퀴 약 1.8초. 너무 빠르면 눈이 못 따라간다
 CROP_Y  = 0.55    # 말이 화면 중앙보다 살짝 아래에 있다
 
 
@@ -35,7 +35,10 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("download :", SRC_URL)
-    with urllib.request.urlopen(SRC_URL) as res:
+    # 위키미디어는 기본 User-Agent 를 막는다. 정책상 식별 가능한 값을 보낸다.
+    req = urllib.request.Request(SRC_URL, headers={
+        "User-Agent": "convex-sample-builder/1.0 (https://github.com/chcbaram/convex)"})
+    with urllib.request.urlopen(req) as res:
         src = Image.open(BytesIO(res.read()))
 
     frames = []

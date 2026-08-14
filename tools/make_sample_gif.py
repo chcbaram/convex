@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """CONVEX LCD(284 x 76) 크기의 예제 GIF 를 만든다.
 
+정지 이미지 하나와 오디오 스펙트럼 애널라이저 애니메이션 하나를 만든다.
+
 외부 라이브러리 없이 GIF89a 를 직접 인코딩한다. 인터넷에서 받은 이미지는
 라이선스가 걸리고 해상도도 맞춰야 하지만, 직접 만들면 둘 다 없다.
 
@@ -140,30 +142,100 @@ def make_static():
     return bytes(buf)
 
 
-def make_anim(nframes=24):
-    """좌우로 훑고 지나가는 빛줄기."""
+# 스펙트럼 애널라이저 팔레트
+#   0        배경
+#   1        격자
+#   2..2+N-1 막대 색 (아래 초록 -> 노랑 -> 위 빨강)
+#   마지막   피크 표시
+BAR_STEPS = 24
+IDX_BG    = 0
+IDX_GRID  = 1
+IDX_BAR   = 2
+IDX_PEAK  = IDX_BAR + BAR_STEPS
+
+
+def build_spectrum_palette():
+    pal = [(8, 10, 14), (24, 28, 36)]
+
+    for i in range(BAR_STEPS):
+        t = i / (BAR_STEPS - 1)          # 0 = 아래, 1 = 위
+        if t < 0.6:
+            u = t / 0.6                   # 초록 -> 노랑
+            pal.append((int(40 + 200 * u), int(200 + 20 * u), int(70 - 40 * u)))
+        else:
+            u = (t - 0.6) / 0.4           # 노랑 -> 빨강
+            pal.append((int(240 + 15 * u), int(220 - 160 * u), int(30 + 10 * u)))
+
+    pal.append((235, 240, 245))           # 피크
+    return pal
+
+
+def make_anim(nframes=30, bars=32):
+    """오디오 스펙트럼 애널라이저. 막대가 오르내리고 피크가 천천히 내려온다."""
+    import math
+
+    gap    = 2
+    bar_w  = (WIDTH - gap * (bars - 1)) // bars
+    left   = (WIDTH - (bar_w * bars + gap * (bars - 1))) // 2
+
+    # 막대마다 주기가 다른 사인을 겹친다. 주기를 정수로 두어야 한 바퀴가
+    # 매끄럽게 이어진다. 낮은 대역일수록 크게 흔들린다.
+    waves = []
+    for b in range(bars):
+        lo = 1.0 - b / (bars - 1)                     # 저음쪽 가중치
+        waves.append((
+            (1, 0.37 * b, 0.34 + 0.30 * lo),
+            (2, 0.61 * b, 0.22),
+            (3, 0.11 * b, 0.14),
+            (5, 0.83 * b, 0.08),
+        ))
+
+    def level(b, t):
+        v = 0.30 + 0.22 * (1.0 - b / (bars - 1))      # 기본 높이
+        for k, ph, amp in waves[b]:
+            v += amp * math.sin(2 * math.pi * (k * t + ph))
+        return max(0.02, min(1.0, v))
+
+    # 피크는 이전 프레임에 의존한다. 한 바퀴 먼저 돌려 초기값을 맞춘 뒤
+    # 기록해야 마지막 프레임에서 첫 프레임으로 튀지 않는다.
+    peak = [0.0] * bars
     frames = []
-    cy = HEIGHT / 2
-    span = WIDTH + 80
 
-    for f in range(nframes):
-        t = f / nframes
-        # 좌우 왕복 (사인 곡선이라 끝에서 부드럽게 되돌아온다)
-        head = -40 + span * (0.5 - 0.5 * __import__("math").cos(2 * 3.141592653589793 * t))
-        buf = bytearray(WIDTH * HEIGHT)
+    for pass_no in range(2):
+        for f in range(nframes):
+            t = f / nframes
+            lv = [level(b, t) for b in range(bars)]
 
-        for y in range(HEIGHT):
-            fy = 1.0 - abs(y - cy) / cy
-            fy = max(0.0, fy) ** 1.6
-            row = y * WIDTH
-            for x in range(WIDTH):
-                d = abs(x - head)
-                v = max(0.0, 1.0 - d / 46.0) ** 2.2 * fy
-                c = int(v * 31)
-                if y % 19 == 0 or x % 24 == 0:
-                    c = min(31, c + 2)
-                buf[row + x] = c
-        frames.append(bytes(buf))
+            for b in range(bars):
+                peak[b] = lv[b] if lv[b] >= peak[b] else max(lv[b], peak[b] - 0.045)
+
+            if pass_no == 0:
+                continue
+
+            buf = bytearray(WIDTH * HEIGHT)
+
+            for y in range(0, HEIGHT, 6):             # 가로 격자
+                row = y * WIDTH
+                for x in range(WIDTH):
+                    buf[row + x] = IDX_GRID
+
+            for b in range(bars):
+                x0 = left + b * (bar_w + gap)
+                h  = int(lv[b] * HEIGHT)
+                py = HEIGHT - 1 - int(peak[b] * (HEIGHT - 1))
+
+                for y in range(HEIGHT - h, HEIGHT):
+                    t_col = (HEIGHT - 1 - y) / (HEIGHT - 1)
+                    c = IDX_BAR + min(BAR_STEPS - 1, int(t_col * BAR_STEPS))
+                    row = y * WIDTH
+                    for x in range(x0, x0 + bar_w):
+                        buf[row + x] = c
+
+                for x in range(x0, x0 + bar_w):       # 피크 선
+                    buf[py * WIDTH + x] = IDX_PEAK
+
+            frames.append(bytes(buf))
+
     return frames
 
 
@@ -177,7 +249,7 @@ def main():
     still.write_bytes(gif([make_static()], pal))
 
     anim = out_dir / "sample-anim.gif"
-    anim.write_bytes(gif(make_anim(), pal, delay_cs=5))
+    anim.write_bytes(gif(make_anim(), build_spectrum_palette(), delay_cs=7))
 
     for p in (still, anim):
         print("%-40s %8d B" % (p, p.stat().st_size))

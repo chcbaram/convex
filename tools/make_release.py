@@ -23,6 +23,9 @@ QMK_DIR     = ROOT / "firmware" / "convex-qmk"
 RELEASE_DIR = ROOT / "firmware" / "release"
 MANIFEST    = RELEASE_DIR / "manifest.json"
 
+# 릴리즈 노트는 5개까지만 싣는다. 그 이상은 웹페이지에서 읽는 사람이 훑지 않는다.
+MAX_NOTES   = 5
+
 HW_DEF      = QMK_DIR / "src" / "hw" / "hw_def.h"
 KBD_CONFIG  = QMK_DIR / "src" / "ap" / "modules" / "qmk" / "keyboards" / "convex" / "config.h"
 
@@ -58,6 +61,9 @@ def main() -> None:
             raise SystemExit("--note 뒤에 내용이 필요하다")
         notes.append(args[i + 1])
         del args[i:i + 2]
+
+    if len(notes) > MAX_NOTES:
+        raise SystemExit("릴리즈 노트는 %d 개까지다 (%d 개 받음)" % (MAX_NOTES, len(notes)))
 
     if len(args) != 1:
         raise SystemExit(__doc__)

@@ -48,6 +48,7 @@ typedef enum
   FWUPDATE_CMD_RTC    = 0x08,   // RTC 읽기/쓰기
   FWUPDATE_CMD_SHOW   = 0x09,   // 지정한 슬롯을 기기 화면에 띄운다
   FWUPDATE_CMD_READ   = 0x0A,   // 슬롯에 저장된 GIF 를 읽어 온다
+  FWUPDATE_CMD_ERASE  = 0x0B,   // 슬롯 하나를 지운다
 } FwUpdateCmd_t;
 
 typedef enum
@@ -96,7 +97,7 @@ typedef enum
 
 // SLOT 응답 배치 (리포트 [3] 부터)
 //   [3]      슬롯 번호
-//   [4]      플래그 : bit0 사용중, bit1 동영상, bit2 이름 있음
+//   [4]      플래그 : bit0 사용중, bit1 동영상, bit2 이름 있음, bit3 손상됨
 //   [5..8]   파일 크기 u32
 //   [9..10]  GIF 가로 u16
 //   [11..12] GIF 세로 u16
@@ -104,9 +105,13 @@ typedef enum
 #define FWUPDATE_SLOT_F_USED      (1<<0)
 #define FWUPDATE_SLOT_F_MOVIE     (1<<1)
 #define FWUPDATE_SLOT_F_NAMED     (1<<2)
+#define FWUPDATE_SLOT_F_BROKEN    (1<<3)   // 태그가 없거나 CRC 가 맞지 않는다
 
 // SHOW 요청 : [2] 슬롯 번호. 슬롯 앱으로 전환하고 그 슬롯을 다시 읽어 띄운다.
 //             방금 전송한 GIF 를 바로 확인하는 데도 쓴다.
+
+// ERASE 요청 : [2] 슬롯 번호. 기록된 크기만큼만 지운다. 슬롯 전체(2MB)를
+//              지우면 64KB 섹터 32개라 몇 초씩 걸린다.
 
 // READ 요청 : [2] 슬롯 번호, [3..6] 오프셋 u32 (헤더 32바이트를 뺀 GIF 기준)
 // READ 응답 : [3] 슬롯, [4..7] 오프셋, [8] 이번에 실은 바이트 수, [9..31] 데이터
@@ -122,12 +127,29 @@ typedef enum
 #define FWUPDATE_RTC_OP_SET       1
 
 
+// 진행 상황. LCD 진행 화면이 읽는다.
+typedef struct
+{
+  uint8_t state;      // FWUPDATE_STATE_xxx
+  uint8_t target;     // FWUPDATE_TARGET_xxx
+  uint8_t slot;
+  uint8_t percent;
+  uint8_t err;
+  bool    is_erase;   // 지우기만 하는 중
+} fwupdate_status_t;
+
+void fwupdateGetStatus(fwupdate_status_t *p_status);
+
 // USB(ISR) 에서 호출된다. 리포트를 큐에 넣기만 하고 즉시 반환한다.
 // 우리 리포트면 true 를 반환한다. (VIA 자동 에코를 막기 위함)
 bool fwupdateHandleReport(uint8_t *p_data, uint8_t length);
 
 // 업데이트 진행 중인지. QSPI 를 함께 쓰는 GIF 재생 쪽에서 확인한다.
 bool fwupdateIsBusy(void);
+
+// 슬롯이 온전한지. 전송이 중간에 끊기면 태그가 없어 false 가 된다.
+// CRC 를 다시 계산하므로 재생 직전에 한 번만 부른다.
+bool fwupdateSlotIsValid(uint8_t slot);
 
 
 #ifdef __cplusplus

@@ -26,6 +26,7 @@ enum
   APP_ID_MATRIX,
   APP_ID_CALC,
   APP_ID_SLOT,
+  APP_ID_UPDATE,      // 사용자가 고르는 앱이 아니다. 앱 전환 순서에서 빠진다.
   APP_ID_MAX
 };
 

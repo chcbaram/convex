@@ -32,6 +32,7 @@ static void fwupdate_cmd_slot(uint8_t *p_data);
 static void fwupdate_cmd_rtc(uint8_t *p_data);
 static void fwupdate_cmd_show(uint8_t *p_data);
 static void fwupdate_cmd_read(uint8_t *p_data);
+static void fwupdate_cmd_erase(uint8_t *p_data);
 static bool fwupdate_erase(uint32_t addr, uint32_t size);
 static bool fwupdate_page_store(uint32_t addr, uint8_t *p_data, uint32_t length);
 static bool fwupdate_page_flush(void);
@@ -50,6 +51,9 @@ static uint8_t  tr_slot     = 0;
 static uint32_t tr_base     = 0;   // 데이터 시작 주소 (태그 다음)
 static uint32_t tr_size     = 0;   // 전체 크기
 static uint32_t tr_written  = 0;
+static bool     tr_is_erase = false;   // 지우기만 하는 요청인지
+static uint32_t er_total    = 0;       // 지울 섹터 수
+static uint32_t er_done     = 0;
 static bool     is_commit   = false;
 
 static uint8_t  page_buf[FWUPDATE_PAGE_SIZE];
@@ -93,6 +97,62 @@ bool fwupdateHandleReport(uint8_t *p_data, uint8_t length)
 bool fwupdateIsBusy(void)
 {
   return (state == FWUPDATE_STATE_ERASE || state == FWUPDATE_STATE_WRITE);
+}
+
+bool fwupdateSlotIsValid(uint8_t slot)
+{
+  firm_tag_t tag;
+  uint16_t   crc = 0;
+  uint32_t   slot_base;
+
+
+  if (slot >= FWUPDATE_SLOT_MAX_CH)
+    return false;
+
+  slot_base = FLASH_ADDR_UPDATE_SLOT + (slot * FLASH_SIZE_SLOT);
+
+  // 태그는 전송이 끝까지 성공했을 때만 기록된다. 중간에 끊긴 슬롯은
+  // 헤더의 크기 필드만 남아 멀쩡해 보이므로 여기서 걸러낸다.
+  if (flashRead(slot_base, (uint8_t *)&tag, sizeof(firm_tag_t)) != true)
+    return false;
+
+  if (tag.magic_number != TAG_MAGIC_NUMBER)
+    return false;
+
+  if (tag.fw_size == 0 || tag.fw_size > FWUPDATE_SLOT_DATA_MAX)
+    return false;
+
+  if (fwupdate_calc_crc(slot_base + FLASH_SIZE_TAG, tag.fw_size, &crc) != true)
+    return false;
+
+  return (crc == (uint16_t)tag.fw_crc);
+}
+
+void fwupdateGetStatus(fwupdate_status_t *p_status)
+{
+  uint8_t percent = 0;
+
+  if (state == FWUPDATE_STATE_ERASE)
+  {
+    if (er_total > 0)
+      percent = (er_done * 100) / er_total;
+  }
+  else if (tr_size > 0)
+  {
+    percent = (tr_written * 100) / tr_size;
+    if (percent > 100)
+      percent = 100;
+  }
+
+  if (percent > 100)
+    percent = 100;
+
+  p_status->state   = state;
+  p_status->target  = tr_target;
+  p_status->slot    = tr_slot;
+  p_status->percent = percent;
+  p_status->err     = last_err;
+  p_status->is_erase = tr_is_erase;
 }
 
 void fwupdateThread(void const *arg)
@@ -161,6 +221,10 @@ void fwupdate_process(uint8_t *p_data)
 
     case FWUPDATE_CMD_READ:
       fwupdate_cmd_read(p_data);
+      break;
+
+    case FWUPDATE_CMD_ERASE:
+      fwupdate_cmd_erase(p_data);
       break;
 
     default:
@@ -240,7 +304,8 @@ void fwupdate_cmd_begin(uint8_t *p_data)
       break;
     }
 
-    tr_target  = target;
+    tr_target   = target;
+    tr_is_erase = false;
     tr_slot    = slot;
     tr_size    = size;
     tr_written = 0;
@@ -248,6 +313,9 @@ void fwupdate_cmd_begin(uint8_t *p_data)
     page_addr  = 0;
 
     state = FWUPDATE_STATE_ERASE;
+
+    // 진행률을 보여준다. GIF 재생이 멈춰 QSPI 를 두고 다투지 않는 효과도 있다.
+    uiReqApp(APP_ID_UPDATE);
 
     // 태그 영역까지 포함해 한 번에 지운다. 블록 단위 on-demand erase 는
     // 순서가 뒤바뀌면 이미 쓴 데이터를 지우므로 쓰지 않는다.
@@ -455,6 +523,9 @@ void fwupdate_cmd_slot(uint8_t *p_data)
   {
     buf[1] |= FWUPDATE_SLOT_F_USED;
 
+    if (fwupdateSlotIsValid(slot) != true)
+      buf[1] |= FWUPDATE_SLOT_F_BROKEN;
+
     if (memcmp(&head[FWUPDATE_SLOT_MAGIC_OFS], "SLT1", 4) == 0)
     {
       // 새 포맷 : 이름과 종류를 그대로 쓴다.
@@ -490,6 +561,60 @@ void fwupdate_cmd_show(uint8_t *p_data)
   uiReqApp(APP_ID_SLOT);
 
   fwupdate_send_resp(FWUPDATE_CMD_SHOW, FWUPDATE_OK, &slot, 1);
+}
+
+void fwupdate_cmd_erase(uint8_t *p_data)
+{
+  uint8_t  slot = p_data[2];
+  uint32_t slot_base;
+  uint32_t file_size = 0;
+  uint32_t erase_size;
+  uint8_t  err = FWUPDATE_OK;
+
+
+  if (slot >= FWUPDATE_SLOT_MAX_CH)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_ERASE, FWUPDATE_ERR_TARGET, NULL, 0);
+    return;
+  }
+
+  slot_base = FLASH_ADDR_UPDATE_SLOT + (slot * FLASH_SIZE_SLOT);
+
+  // 기록된 크기만큼만 지운다. 슬롯 전체(2MB)는 64KB 섹터 32개라 5초 가까이 걸린다.
+  if (flashRead(slot_base + FLASH_SIZE_TAG + 16, (uint8_t *)&file_size, 4) != true)
+  {
+    file_size = 0;
+  }
+  if (file_size == 0xFFFFFFFF || file_size > FWUPDATE_SLOT_DATA_MAX)
+  {
+    file_size = 0;
+  }
+
+  erase_size = FLASH_SIZE_TAG + 32 + file_size;
+
+  tr_target   = FWUPDATE_TARGET_SLOT;
+  tr_is_erase = true;
+  tr_slot     = slot;
+  tr_size     = 0;
+  tr_written  = 0;
+  state       = FWUPDATE_STATE_ERASE;
+
+  uiReqApp(APP_ID_UPDATE);
+
+  if (fwupdate_erase(slot_base, erase_size) != true)
+  {
+    err      = FWUPDATE_ERR_ERASE;
+    state    = FWUPDATE_STATE_ERROR;
+    last_err = err;
+  }
+  else
+  {
+    state = FWUPDATE_STATE_DONE;
+    // 지운 슬롯을 보고 있었다면 화면도 다시 읽게 한다.
+    gifReqSlot(slot);
+  }
+
+  fwupdate_send_resp(FWUPDATE_CMD_ERASE, err, &slot, 1);
 }
 
 void fwupdate_cmd_read(uint8_t *p_data)
@@ -602,6 +727,10 @@ bool fwupdate_erase(uint32_t addr, uint32_t size)
   sector_s = addr / FWUPDATE_SECTOR_SIZE;
   sector_e = (addr + size - 1) / FWUPDATE_SECTOR_SIZE;
 
+  // 섹터 하나에 수십~수백 ms 씩 걸린다. LCD 진행 화면이 이 값을 읽는다.
+  er_total = sector_e - sector_s + 1;
+  er_done  = 0;
+
   for (uint32_t i = sector_s; i <= sector_e; i++)
   {
     if (flashErase(i * FWUPDATE_SECTOR_SIZE, FWUPDATE_SECTOR_SIZE) != true)
@@ -609,6 +738,7 @@ bool fwupdate_erase(uint32_t addr, uint32_t size)
       logPrintf("[E_] flashErase(0x%X)\n", i * FWUPDATE_SECTOR_SIZE);
       return false;
     }
+    er_done++;
   }
 
   return true;

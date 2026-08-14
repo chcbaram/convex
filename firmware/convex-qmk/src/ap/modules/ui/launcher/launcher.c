@@ -5,6 +5,8 @@
 #include "app/test/test.h"
 #include "app/calc/calc.h"
 #include "app/gif/gif_app.h"
+#include "app/update/update_app.h"
+#include "fwupdate.h"
 
 
 #define APP_MAX_CNT     8
@@ -21,6 +23,7 @@ static uint8_t     app_cnt = 0;
 static app_info_t *p_app_info[APP_MAX_CNT];
 static uint8_t     req_run_id = APP_ID_NONE;
 static uint8_t     cur_run_id = APP_ID_NONE;
+static uint8_t     back_run_id = APP_ID_CLOCK;
 static bool        is_ready   = false;
 static bool        is_app_run = false;
 static bool        is_qmk_suspend = false;
@@ -53,6 +56,7 @@ bool launcherInit(void)
   p_app_info[app_cnt++] = calcGetAppInfo();
   p_app_info[app_cnt++] = gifGetAppInfo();  
   p_app_info[app_cnt++] = testGetAppInfo();  
+  p_app_info[app_cnt++] = updateGetAppInfo();
   
   lvglInit();
 
@@ -114,23 +118,40 @@ static int8_t get_app_index_by_id(uint8_t id)
   return -1;
 }
 
+// 사용자가 고르는 앱이 아닌 것은 전환 순서에서 뺀다.
+static bool is_pick_app(uint8_t id)
+{
+  return (id != APP_ID_UPDATE);
+}
+
 uint8_t uiGetPrevAppId(uint8_t current_id)
 {
   int8_t idx = get_app_index_by_id(current_id);
-  if (idx <= 0) 
+  if (idx < 0)
+    idx = 0;
+
+  for (int i = 0; i < app_cnt; i++)
   {
-    // 현재 첫 번째 앱이거나 찾지 못한 경우 마지막 앱으로 이동
-    return p_app_info[app_cnt - 1]->id; 
+    idx = (idx - 1 + app_cnt) % app_cnt;
+    if (is_pick_app(p_app_info[idx]->id))
+      break;
   }
-  return p_app_info[idx - 1]->id;
+  return p_app_info[idx]->id;
 }
 
 uint8_t uiGetNextAppId(uint8_t current_id)
 {
   int8_t idx = get_app_index_by_id(current_id);
-  if (idx == -1) 
-    return p_app_info[0]->id; // 못찾으면 첫번째
-  return p_app_info[(idx + 1) % app_cnt]->id;
+  if (idx < 0)
+    idx = -1;
+
+  for (int i = 0; i < app_cnt; i++)
+  {
+    idx = (idx + 1) % app_cnt;
+    if (is_pick_app(p_app_info[idx]->id))
+      break;
+  }
+  return p_app_info[idx]->id;
 }
 
 void uiReqAppExit(void)
@@ -143,10 +164,19 @@ void uiReqApp(uint8_t app_id)
   if (uiGetAppInfo(app_id) == NULL)
     return;
 
+  // 끼어드는 앱으로 갈 때는 돌아올 곳을 기억해 둔다.
+  if (app_id == APP_ID_UPDATE && cur_run_id != APP_ID_UPDATE)
+    back_run_id = cur_run_id;
+
   req_run_id = app_id;
 
   if (req_run_id != cur_run_id)
     uiReqAppExit();
+}
+
+void uiReqAppBack(void)
+{
+  uiReqApp(back_run_id);
 }
 
 void launcherUpdate(void)
@@ -175,7 +205,8 @@ void launcherUpdate(void)
     is_app_run = true;
 
 
-    eepromWriteByte(HW_EEPROM_INIT_APP, cur_run_id);
+    if (cur_run_id != APP_ID_UPDATE)
+      eepromWriteByte(HW_EEPROM_INIT_APP, cur_run_id);
 
     // 3. 새 앱 실행
     if (p_req->init) 
@@ -198,6 +229,28 @@ bool qmk_process_keys(uint16_t keycode, keyrecord_t *record)
   uint8_t bl_level;
 
   // logPrintf("keycode : 0x%X, %d\n", keycode, record->event.pressed);
+
+  // 업데이트 중에는 화면과 슬롯을 건드리는 키만 무시한다. 플래시를 함께
+  // 쓰는 쪽이라 진행 화면이 밀리거나 쓰는 중인 슬롯을 읽게 된다.
+  // 타자와 밝기 조절은 상관없으니 그대로 둔다.
+  if (record->event.pressed && fwupdateIsBusy())
+  {
+    switch(keycode)
+    {
+      case UI_KC_APP_P:
+      case UI_KC_APP_M:
+      case UI_KC_CLK:
+      case UI_KC_CAL:
+      case UI_KC_MTX:
+      case UI_KC_SLOT:
+      case UI_KC_SLOT_NXT:
+      case UI_KC_SLOT_DEL:
+        return false;
+
+      default:
+        break;
+    }
+  }
 
   if (record->event.pressed)
   {

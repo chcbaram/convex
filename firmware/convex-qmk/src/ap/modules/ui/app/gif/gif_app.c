@@ -1,4 +1,5 @@
 #include "quantum.h" // 필요한 시스템 헤더
+#include "fwupdate.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -152,6 +153,7 @@ static void load_gif_from_slot(uint8_t slot_idx)
   uint32_t slot_base;
   uint32_t file_size = 0;
   bool file_exists = false;
+  bool is_broken   = false;
 
 
   if (slot_idx >= 4 || root == NULL) return;
@@ -167,6 +169,15 @@ static void load_gif_from_slot(uint8_t slot_idx)
     {
       file_exists = true;
     }
+  }
+
+  // 크기 필드는 첫 리포트에 들어 있어, 전송이 중간에 끊겨도 남아 있다.
+  // 태그까지 확인해야 온전한 슬롯인지 알 수 있다.
+  if (file_exists && fwupdateSlotIsValid(slot_idx) != true)
+  {
+    logPrintf("[E_] slot %d broken\n", slot_idx + 1);
+    file_exists = false;
+    is_broken   = true;
   }
 
   if (file_exists)
@@ -194,9 +205,12 @@ static void load_gif_from_slot(uint8_t slot_idx)
       lv_obj_delete(state.gif_obj);
       state.gif_obj = NULL;
     }    
-    // 3-B. GIF 파일이 없는 경우 안내 문구 표시
+    // 3-B. GIF 파일이 없거나 깨진 경우 안내 문구 표시
     state.gif_obj = lv_label_create(root);
-    lv_label_set_text_fmt(state.gif_obj, "GIF SLOT %d", slot_idx + 1);
+    if (is_broken)
+      lv_label_set_text_fmt(state.gif_obj, "SLOT %d BROKEN", slot_idx + 1);
+    else
+      lv_label_set_text_fmt(state.gif_obj, "GIF SLOT %d", slot_idx + 1);
 
     // 스타일 설정 (가독성을 위해)
     lv_obj_set_style_text_color(state.gif_obj, lv_color_hex(0xFFFFFF), 0);
