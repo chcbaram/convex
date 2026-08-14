@@ -113,9 +113,14 @@ typedef struct
   uint8_t percent;
 } uf2_info_t;
 
+// uf2_write_block() 반환값
+#define UF2_RET_NOT_UF2   (-1)   // UF2 블록이 아님 (FAT/디렉터리 기록)
+#define UF2_RET_ERR       (-2)   // 플래시 기록 실패
+
 void uf2Init(void);
 void uf2Update(void);
 void uf2GetInfo(uf2_info_t *p_info);
+void uf2RequestJump(void);
 
 int  uf2_write_block(uint32_t block_no, uint8_t *data, WriteState *state);
 void uf2_flash_complete(WriteState *state);

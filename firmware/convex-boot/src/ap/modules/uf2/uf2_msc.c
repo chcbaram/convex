@@ -18,10 +18,20 @@ int32_t tud_msc_write10_cb (uint8_t lun, uint32_t lba, uint32_t offset, uint8_t*
   uint32_t count = 0;
   while ( count < bufsize )
   {
-    // Consider non-uf2 block write as successful
-    // only break if write_block is busy with flashing (return 0)
-    if ( 0 == uf2_write_block(lba, buffer, &_wr_state) ) break;
+    int ret;
 
+    ret = uf2_write_block(lba, buffer, &_wr_state);
+
+    // only break if write_block is busy with flashing (return 0)
+    if ( ret == 0 )
+      break;
+
+    // 기록 실패는 호스트에 알려야 한다. 성공으로 응답하면 복사가 끝난 것처럼
+    // 보이지만 실제로는 플래시에 아무것도 남지 않는다.
+    if ( ret == UF2_RET_ERR )
+      return -1;
+
+    // Consider non-uf2 block write as successful (FAT/directory 기록)
     lba++;
     buffer += 512;
     count  += 512;
@@ -57,8 +67,10 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     }else
     {
       // unload disk storage
+      // 여기서 바로 점프하면 이 명령의 CSW 를 호스트에 보내기 전에 USB 가 죽어
+      // Windows 에서 "장치 제거 오류"가 뜬다. 요청만 남기고 uf2Update() 에서 처리한다.
       logPrintf("ejected\n");
-      bootJumpFirm();
+      uf2RequestJump();
     }
   }
 

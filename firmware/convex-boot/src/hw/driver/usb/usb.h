@@ -14,6 +14,8 @@ extern "C" {
 bool usbInit(void);
 void usbDeInit(void);
 void usbUpdate(void);
+void usbDisconnect(void);
+void usbConnect(void);
 
 
 #ifdef __cplusplus

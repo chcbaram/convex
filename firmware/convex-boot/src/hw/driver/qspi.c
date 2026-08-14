@@ -653,7 +653,7 @@ uint8_t BSP_QSPI_Erase_Sector(uint32_t SectorAddress)
 
   /* Initialize the erase command */
   s_command.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-  s_command.Instruction       = SECTOR_ERASE_CMD;
+  s_command.Instruction       = SECTOR_ERASE_CMD;   // 0xD8, 64KB block erase
   s_command.AddressMode       = QSPI_ADDRESS_1_LINE;
   s_command.AddressSize       = QSPI_ADDRESS_24_BITS;
   s_command.Address           = SectorAddress;
@@ -678,7 +678,9 @@ uint8_t BSP_QSPI_Erase_Sector(uint32_t SectorAddress)
   }
 
   /* Configure automatic polling mode to wait for end of erase */
-  if (QSPI_AutoPollingMemReady(&hqspi, W25Q128FV_SUBSECTOR_ERASE_MAX_TIME) != QSPI_OK)
+  /* 64KB block erase 는 subsector(4KB) 보다 오래 걸린다. 4KB 기준 타임아웃을 쓰면
+     지연 시 erase 를 실패로 처리해 기록이 깨진다. */
+  if (QSPI_AutoPollingMemReady(&hqspi, W25Q128FV_SECTOR_ERASE_MAX_TIME) != QSPI_OK)
   {
     return QSPI_ERROR;
   }

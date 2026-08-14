@@ -28,6 +28,10 @@
 
 #if CFG_TUD_MSC
 
+// tinyusb msc.h 에 정의되어 있지 않은 opcode
+#define SCSI_CMD_SYNCHRONIZE_CACHE_10   0x35
+#define SCSI_CMD_SYNCHRONIZE_CACHE_16   0x91
+
 // whether host does safe-eject
 static bool ejected = false;
 
@@ -42,7 +46,10 @@ static bool ejected = false;
 "VER  : " _DEF_FIRMWATRE_VERSION "\r\n" 
 
 
-static uint8_t readme_txt[512] = {0, };
+static uint8_t  readme_txt[512] = {0, };
+static uint32_t readme_len = 0;
+
+static void msc_make_readme(void);
 
 #define RAM_BLOCK_NUM    (16)
 #define DISK_BLOCK_NUM   32768  // 16MB (32768 * 512 = 16.7MB)
@@ -60,7 +67,11 @@ static uint8_t msc_disk[RAM_BLOCK_NUM][DISK_BLOCK_SIZE] =
     0x01, 0x00,       // Reserved sectors (1)
     0x02,             // FAT count (2)
     0x00, 0x02,       // Root entries (512개 -> 32섹터)
-    0x00, 0x00,       // Small sectors (0)
+
+    // [19-20] Total sectors 16 (32768 = 0x8000)
+    // FAT 스펙상 총 섹터가 0x10000 미만이면 이 16bit 필드를 쓰고 32bit 필드는 0 이어야 한다.
+    0x00, 0x80,
+
     0xF8,             // Media descriptor
     
     // 16MB (32768 클러스터) 관리용 FAT 크기: 32768 * 2바이트 / 512 = 128섹터
@@ -70,9 +81,9 @@ static uint8_t msc_disk[RAM_BLOCK_NUM][DISK_BLOCK_SIZE] =
     0x01, 0x00,       // Heads
     0x00, 0x00, 0x00, 0x00, 
     
-    // [32-35] Total sectors (32768 = 0x00008000)
-    0x00, 0x80, 0x00, 0x00, 
-    
+    // [32-35] Total sectors 32 (16bit 필드를 썼으므로 0)
+    0x00, 0x00, 0x00, 0x00,
+
     0x80, 0x00, 0x29, 
     0x99, 0x88, 0x77, 0x66, // Serial Number (강제 갱신용 새 번호)
     'B', 'A', 'R', 'A', 'M', ' ', 'B', 'O', 'O', 'T', ' ',
@@ -107,6 +118,47 @@ static uint8_t msc_disk[RAM_BLOCK_NUM][DISK_BLOCK_SIZE] =
   // //------------- Block3: Readme Content -------------//
   // README_CONTENTS
 };
+
+void msc_make_readme(void)
+{
+  firm_ver_t tag_ver;
+  firm_ver_t *p_tag = &tag_ver;
+  uint32_t index = 0;
+  int len;
+
+
+  // 남은 크기를 넘겨야 버퍼를 벗어나지 않는다.
+  #define README_ADD(...)                                                                \
+    do {                                                                                 \
+      len = snprintf((char *)&readme_txt[index], sizeof(readme_txt)-index, __VA_ARGS__); \
+      if (len > 0) index += (uint32_t)len;                                               \
+      if (index > sizeof(readme_txt)-1) index = sizeof(readme_txt)-1;                    \
+    } while(0)
+
+  memset(readme_txt, 0, sizeof(readme_txt));
+
+  flashRead(FLASH_ADDR_FIRM + FLASH_SIZE_TAG + FLASH_SIZE_VEC, (uint8_t *)p_tag, sizeof(firm_ver_t));
+
+  README_ADD("This is BARAM BOOT.\r\n\r\n\r\n");
+  README_ADD("NAME : %s\r\n", _DEF_BOARD_NAME);
+  README_ADD("VER  : %s\r\n", _DEF_FIRMWATRE_VERSION);
+  README_ADD("\r\n\r\n");
+
+  if (p_tag->magic_number == VERSION_MAGIC_NUMBER)
+  {
+    // 플래시에서 읽은 문자열은 NUL 종료가 보장되지 않으므로 길이를 제한한다.
+    README_ADD("NAME : %.*s\r\n", (int)sizeof(p_tag->name_str), p_tag->name_str);
+    README_ADD("VER  : %.*s\r\n", (int)sizeof(p_tag->version_str), p_tag->version_str);
+  }
+  else
+  {
+    README_ADD("No Firmware\r\n");
+  }
+
+  #undef README_ADD
+
+  readme_len = index;
+}
 
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
@@ -196,43 +248,28 @@ __attribute__((weak)) int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint3
     if (lba == 129) memcpy(buffer, msc_disk[1] + offset, bufsize);
   }
   // Root Directory (LBA 257 ~ 288)
-  else if (lba >= 257 && lba <= 288) 
+  else if (lba >= 257 && lba <= 288)
   {
-    if (lba == 257) memcpy(buffer, msc_disk[RAM_BLOCK_NUM - 1] + offset, bufsize);
+    if (lba == 257)
+    {
+      uint8_t *p_dir = msc_disk[RAM_BLOCK_NUM - 1];
+
+      // README.TXT 는 내용이 펌웨어 상태에 따라 달라진다. 디렉터리 엔트리의
+      // 파일 크기를 실제 길이와 맞춰줘야 뒤에 NUL 이 붙거나 잘리지 않는다.
+      // 두 번째 엔트리(오프셋 32) 의 파일 크기 필드는 +28 위치에 있다.
+      msc_make_readme();
+      p_dir[32 + 28] = (readme_len >>  0) & 0xFF;
+      p_dir[32 + 29] = (readme_len >>  8) & 0xFF;
+      p_dir[32 + 30] = (readme_len >> 16) & 0xFF;
+      p_dir[32 + 31] = (readme_len >> 24) & 0xFF;
+
+      memcpy(buffer, p_dir + offset, bufsize);
+    }
   }
   // README File (Cluster 2 -> LBA 289)
   else if (lba == 289)
   {
-    int len;
-    int index = 0;
-    firm_ver_t tag_ver;
-    firm_ver_t *p_tag = &tag_ver;
-    
-    // Readme 텍스트 버퍼 초기화
-    memset(readme_txt, 0, sizeof(readme_txt));
-
-    flashRead(FLASH_ADDR_FIRM + FLASH_SIZE_TAG + FLASH_SIZE_VEC, (uint8_t *)p_tag, sizeof(firm_ver_t));
-
-    len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "This is BARAM BOOT.\r\n\r\n\r\n");
-    index += len;
-    len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "NAME : %s\r\n", _DEF_BOARD_NAME);
-    index += len;
-    len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "VER  : %s\r\n", _DEF_FIRMWATRE_VERSION);
-    index += len;
-    len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "\r\n\r\n");
-    index += len;
-
-    if (p_tag->magic_number == VERSION_MAGIC_NUMBER)
-    {
-      len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "NAME : %s\r\n", p_tag->name_str);
-      index += len;
-      len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "VER  : %s\r\n", p_tag->version_str);
-    }
-    else
-    {
-      len = snprintf((char *)&readme_txt[index], sizeof(readme_txt), "No Firmware\r\n");
-    }
-    index += len;
+    msc_make_readme();
 
     // 전송 (offset 고려)
     if (offset < sizeof(readme_txt)) {
@@ -297,6 +334,14 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 
   switch (scsi_cmd[0])
   {
+    case SCSI_CMD_SYNCHRONIZE_CACHE_10:
+    case SCSI_CMD_SYNCHRONIZE_CACHE_16:
+      // Windows 는 쓰기 후/제거 시 이 명령을 보낸다. tinyusb 내장 처리 목록에 없어서
+      // 여기까지 내려오는데, 실패로 응답하면 "지연된 쓰기 실패" 류의 복사 오류가 난다.
+      // 쓰기 캐시가 없으므로 그냥 성공으로 응답한다.
+      resplen = 0;
+    break;
+
     default:
       // Set Sense = Invalid Command Operation
       tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);

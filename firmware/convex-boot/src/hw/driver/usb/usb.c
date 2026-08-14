@@ -30,6 +30,19 @@ void usbUpdate(void)
   tud_task();
 }
 
+// 오래 걸리는 작업(펌웨어 갱신 등) 전에 호출한다. tud_task() 가 멈춘 채로 두면
+// 호스트는 응답 없는 장치로 보고 타임아웃 오류를 내지만, 연결을 끊어주면
+// 정상적인 장치 분리로 인식한다.
+void usbDisconnect(void)
+{
+  tud_disconnect();
+}
+
+void usbConnect(void)
+{
+  tud_connect();
+}
+
 void tud_mount_cb(void)
 {
   logPrintf("tud_mount_cb()\n");
