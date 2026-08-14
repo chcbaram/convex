@@ -41,7 +41,7 @@
   .panel[hidden] { display: none; }
 
   label { display: block; font-weight: 600; margin: 16px 0 6px; font-size: 14px; }
-  select, input[type=file] {
+  select, input[type=file], input[type=text] {
     width: 100%; padding: 11px; border: 1px solid #ced4da; border-radius: 8px;
     font-size: 14px; background: #fff; font-family: inherit;
   }
@@ -167,6 +167,10 @@
       <option value="GIF_MOVIE">GIF 동영상</option>
     </select>
 
+    <label for="gifName">이름 <span class="hint" style="font-weight:400">— 슬롯 목록에 표시됩니다</span></label>
+    <input type="text" id="gifName" maxlength="24" placeholder="예: 고양이">
+    <p class="hint" id="gifNameHint">최대 16바이트 (한글 5자 정도)</p>
+
     <label>넣을 슬롯 <button class="linkbtn" id="btnSlotRefresh" type="button">새로고침</button></label>
     <div class="slots" id="slotList"></div>
 
@@ -240,6 +244,11 @@ const ERR_TEXT = {
   0x06: "기록 실패", 0x07: "읽기 실패", 0x08: "검증 실패(CRC 불일치)",
   0x09: "다른 작업 진행 중",
 };
+
+// 슬롯 데이터 헤더 (fwupdate.h 와 같아야 한다)
+//  [0..15] 이름, [16..19] 크기, [20..23] "SLT1", [24] 종류, [32..] 원본 GIF
+const SLOT_NAME_SIZE   = 16;
+const SLOT_FMT_MAGIC   = "SLT1";
 
 const LCD_WIDTH        = 284;
 const LCD_HEIGHT       = 76;
@@ -484,7 +493,7 @@ async function writeToDrive(bytes, name, setStatus) {
 const ui = {};
 ["dot","connText","btnConnect","noSupport","oldFirmware",
  "tabGif","tabFw","panelGif","panelFw",
- "gifKind","gifFile","gifHint","gifDim","gifPreviewWrap","gifPreview",
+ "gifKind","gifFile","gifName","gifNameHint","gifHint","gifDim","gifPreviewWrap","gifPreview",
  "slotList","btnSlotRefresh","btnGifSend","btnGifDrive","btnGifDownload",
  "gifProgress","gifBar","gifStatus",
  "fwSelect","fwMeta","btnFwSend","btnFwDrive","btnFwDownload",
@@ -530,10 +539,13 @@ let slotState = [];          // { used, size, w, h, kind } | null
 let selectedSlot = 0;
 
 function slotDesc(st) {
-  if (!st)        return { text: "상태를 읽지 못했습니다", cls: "" };
-  if (!st.used)   return { text: "비어 있음", cls: "" };
-  const dim = (st.w && st.h) ? `${st.w} × ${st.h}` : "크기 불명";
-  return { text: `${st.kind || "GIF"} · ${dim} · ${(st.size / 1024).toFixed(1)} KB`, cls: "" };
+  if (!st)      return "상태를 읽지 못했습니다";
+  if (!st.used) return "비어 있음";
+
+  const dim  = (st.w && st.h) ? `${st.w} × ${st.h}` : "크기 불명";
+  const kind = st.movie ? "동영상" : "이미지";
+  const name = st.name || (st.named ? "(이름 없음)" : "이전 버전으로 저장됨");
+  return `${name} — ${kind} · ${dim} · ${(st.size / 1024).toFixed(1)} KB`;
 }
 
 function renderSlots() {
@@ -558,7 +570,7 @@ function renderSlots() {
     const desc = document.createElement("span");
     desc.className = "desc";
     if (dev.info) {
-      desc.textContent = slotDesc(st).text;
+      desc.textContent = slotDesc(st);
     } else {
       desc.textContent = "연결하면 현재 상태를 보여줍니다";
     }
@@ -585,13 +597,16 @@ async function readSlots() {
       const r = await command(CMD_SLOT, new Uint8Array([i]), 3000);
       if (r[2] !== 0) { next.push(null); continue; }
       const dv = new DataView(r.buffer, r.byteOffset);
-      const used = r[4] === 1;
+      const flags = r[4];
+      const used  = (flags & 1) !== 0;
       next.push({
         used,
+        movie: (flags & 2) !== 0,
+        named: (flags & 4) !== 0,
         size: dv.getUint32(5, true),
         w: dv.getUint16(9, true),
         h: dv.getUint16(11, true),
-        kind: used ? new TextDecoder().decode(r.slice(13, 29)).replace(/\0.*$/, "") : "",
+        name: (flags & 4) ? new TextDecoder().decode(r.slice(13, 29)).replace(/\0[\s\S]*$/, "").trim() : "",
       });
     } catch (e) {
       next.push(null);
@@ -602,6 +617,20 @@ async function readSlots() {
 }
 
 ui.btnSlotRefresh.onclick = () => readSlots();
+
+function updateNameHint() {
+  const raw = ui.gifName.value.trim();
+  const used = new TextEncoder().encode(raw).length;
+  if (used > SLOT_NAME_SIZE) {
+    ui.gifNameHint.textContent =
+      `${used} / ${SLOT_NAME_SIZE} 바이트 — "${truncUtf8(raw, SLOT_NAME_SIZE)}" 까지만 저장됩니다`;
+    ui.gifNameHint.style.color = "var(--warn)";
+  } else {
+    ui.gifNameHint.textContent = `${used} / ${SLOT_NAME_SIZE} 바이트 (한글 5자 정도)`;
+    ui.gifNameHint.style.color = "";
+  }
+}
+ui.gifName.oninput = updateNameHint;
 
 //--------------------------------------------------------------------
 // 미리보기 · 예제 파일
@@ -641,6 +670,12 @@ document.querySelectorAll("[data-sample]").forEach(a => {
 });
 
 function applyPicked(head, name, blob) {
+  // 이름을 아직 손대지 않았으면 파일명으로 채워 준다.
+  if (!ui.gifName.value.trim()) {
+    ui.gifName.value = truncUtf8(name.replace(/\.[^.]+$/, ""), SLOT_NAME_SIZE);
+    updateNameHint();
+  }
+
   const size = readGifSize(head);
   if (!size) {
     ui.gifDim.textContent = `${name} — GIF 파일이 아닌 것 같습니다`;
@@ -738,13 +773,36 @@ async function fetchFirmwareBin(f) {
 //--------------------------------------------------------------------
 // GIF 데이터 구성 : 32바이트 헤더(매직 16 + 크기 4 + 예약) + 원본
 //--------------------------------------------------------------------
+// UTF-8 로 인코딩했을 때 max 바이트를 넘지 않도록 자른다.
+// 글자 중간에서 잘리면 깨지므로 문자 단위로 줄인다.
+function truncUtf8(text, max) {
+  const enc = new TextEncoder();
+  let out = text;
+  while (enc.encode(out).length > max) out = out.slice(0, -1);
+  return out;
+}
+
+function nameBytes() {
+  const enc = new TextEncoder();
+  const buf = new Uint8Array(SLOT_NAME_SIZE);
+  buf.set(enc.encode(truncUtf8(ui.gifName.value.trim(), SLOT_NAME_SIZE)));
+  return buf;
+}
+
 async function buildGifPayload() {
   const raw = await pickedBytes();
-
   const out = new Uint8Array(32 + raw.length);
-  const magic = ui.gifKind.value;
-  for (let i = 0; i < Math.min(magic.length, 16); i++) out[i] = magic.charCodeAt(i);
-  new DataView(out.buffer).setUint32(16, raw.length, true);
+  const dv  = new DataView(out.buffer);
+
+  // [0..15] 이름
+  out.set(nameBytes(), 0);
+  // [16..19] 크기 — 구버전 펌웨어도 이 위치를 읽으므로 옮기면 안 된다
+  dv.setUint32(16, raw.length, true);
+  // [20..23] 포맷 매직 — 이게 있어야 이름 필드를 신뢰한다
+  for (let i = 0; i < 4; i++) out[20 + i] = SLOT_FMT_MAGIC.charCodeAt(i);
+  // [24] 종류
+  out[24] = (ui.gifKind.value === "GIF_MOVIE") ? 1 : 0;
+
   out.set(raw, 32);
   return out;
 }

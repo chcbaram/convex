@@ -76,14 +76,30 @@ typedef enum
 } FwUpdateErr_t;
 
 
+// 슬롯 데이터 앞 32바이트 헤더 배치
+//   [0..15]  이름 (UTF-8, NUL 패딩)      <- 구버전에는 "GIF_IMAGE"/"GIF_MOVIE"
+//   [16..19] 파일 크기 u32               <- gif_app.c 가 읽는다. 위치 고정
+//   [20..23] 포맷 매직 "SLT1"            <- 있으면 이름 필드를 신뢰한다
+//   [24]     종류 (0=이미지, 1=동영상)
+//   [25..31] 예약
+//   [32..]   원본 GIF                    <- gif_app.c 가 읽는다. 위치 고정
+//
+// 구버전 데이터는 [20..23] 이 0 이라 매직이 맞지 않는다. 그때는 이름을
+// 알 수 없는 것으로 보고, 종류만 [0..15] 의 옛 문자열에서 되살린다.
+#define FWUPDATE_SLOT_NAME_SIZE   16
+#define FWUPDATE_SLOT_MAGIC_OFS   20
+#define FWUPDATE_SLOT_KIND_OFS    24
+
 // SLOT 응답 배치 (리포트 [3] 부터)
 //   [3]      슬롯 번호
-//   [4]      사용 여부 (0/1)
+//   [4]      플래그 : bit0 사용중, bit1 동영상, bit2 이름 있음
 //   [5..8]   파일 크기 u32
 //   [9..10]  GIF 가로 u16
 //   [11..12] GIF 세로 u16
-//   [13..28] 매직 문자열 16바이트 (GIF_IMAGE / GIF_MOVIE)
-#define FWUPDATE_SLOT_MAGIC_SIZE  16
+//   [13..28] 이름 16바이트
+#define FWUPDATE_SLOT_F_USED      (1<<0)
+#define FWUPDATE_SLOT_F_MOVIE     (1<<1)
+#define FWUPDATE_SLOT_F_NAMED     (1<<2)
 
 
 // USB(ISR) 에서 호출된다. 리포트를 큐에 넣기만 하고 즉시 반환한다.

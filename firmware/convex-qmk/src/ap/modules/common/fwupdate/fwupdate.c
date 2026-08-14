@@ -424,14 +424,30 @@ void fwupdate_cmd_slot(uint8_t *p_data)
   }
 
   buf[0] = slot;
-  buf[1] = is_used ? 1 : 0;
+  buf[1] = 0;
   memcpy(&buf[2], &file_size, 4);
   memcpy(&buf[6], &width,  2);
   memcpy(&buf[8], &height, 2);
 
   if (is_used)
   {
-    memcpy(&buf[10], head, FWUPDATE_SLOT_MAGIC_SIZE);
+    buf[1] |= FWUPDATE_SLOT_F_USED;
+
+    if (memcmp(&head[FWUPDATE_SLOT_MAGIC_OFS], "SLT1", 4) == 0)
+    {
+      // 새 포맷 : 이름과 종류를 그대로 쓴다.
+      buf[1] |= FWUPDATE_SLOT_F_NAMED;
+      if (head[FWUPDATE_SLOT_KIND_OFS] != 0)
+        buf[1] |= FWUPDATE_SLOT_F_MOVIE;
+
+      memcpy(&buf[10], head, FWUPDATE_SLOT_NAME_SIZE);
+    }
+    else
+    {
+      // 구버전 : 이름은 없고 [0..15] 의 옛 문자열에서 종류만 되살린다.
+      if (memcmp(head, "GIF_MOVIE", 9) == 0)
+        buf[1] |= FWUPDATE_SLOT_F_MOVIE;
+    }
   }
 
   fwupdate_send_resp(FWUPDATE_CMD_SLOT, FWUPDATE_OK, buf, sizeof(buf));
