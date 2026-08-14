@@ -1,135 +1,694 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>UF2 Converter with Header Presets</title>
-    <style>
-        body { font-family: 'Pretendard', -apple-system, sans-serif; line-height: 1.6; max-width: 700px; margin: 40px auto; padding: 20px; background-color: #f1f3f5; }
-        .card { background: white; padding: 35px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        h2 { color: #1c7ed6; margin-top: 0; border-bottom: 2px solid #e7f5ff; padding-bottom: 10px; }
-        .config-section { background: #f8f9fa; padding: 25px; border-radius: 12px; margin: 20px 0; text-align: left; border: 1px solid #e9ecef; }
-        label { display: block; font-weight: bold; margin-bottom: 10px; color: #495057; }
-        select, input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ced4da; border-radius: 8px; font-size: 15px; background: white; }
-        .hint { font-size: 13px; color: #868e96; margin-top: -15px; margin-bottom: 15px; }
-        button { background-color: #228be6; color: white; border: none; padding: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; transition: background 0.2s; }
-        button:hover { background-color: #1c7ed6; }
-        #status { margin-top: 20px; font-weight: bold; color: #1c7ed6; text-align: center; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CONVEX 업데이트</title>
+<style>
+  :root {
+    --bg: #f1f3f5; --card: #ffffff; --line: #e9ecef; --text: #212529;
+    --muted: #868e96; --accent: #1c7ed6; --accent-bg: #e7f5ff;
+    --ok: #2f9e44; --warn: #e8590c; --err: #e03131;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.6; max-width: 760px; margin: 0 auto; padding: 24px 16px 64px;
+    background: var(--bg); color: var(--text);
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+
+  .card { background: var(--card); padding: 24px; border-radius: 14px;
+          box-shadow: 0 6px 18px rgba(0,0,0,.07); }
+
+  /* 연결 상태 */
+  .conn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+          padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px;
+          margin-bottom: 18px; background: #fbfcfd; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #ced4da; flex: none; }
+  .dot.on { background: var(--ok); }
+  .dot.bad { background: var(--err); }
+  .conn-text { flex: 1 1 240px; font-size: 14px; }
+  .conn-text b { font-weight: 600; }
+
+  /* 탭 */
+  .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 20px; }
+  .tab { padding: 10px 18px; border: none; background: none; cursor: pointer;
+         font-size: 15px; font-weight: 600; color: var(--muted);
+         border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .panel[hidden] { display: none; }
+
+  label { display: block; font-weight: 600; margin: 16px 0 6px; font-size: 14px; }
+  select, input[type=file] {
+    width: 100%; padding: 11px; border: 1px solid #ced4da; border-radius: 8px;
+    font-size: 14px; background: #fff; font-family: inherit;
+  }
+  .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+
+  button.action {
+    background: var(--accent); color: #fff; border: none; padding: 14px;
+    border-radius: 8px; cursor: pointer; width: 100%; font-size: 15px;
+    font-weight: 600; margin-top: 18px; font-family: inherit;
+  }
+  button.action:hover:not(:disabled) { background: #1971c2; }
+  button.action:disabled { background: #adb5bd; cursor: not-allowed; }
+  button.ghost {
+    background: #fff; color: var(--accent); border: 1px solid var(--accent);
+  }
+  button.ghost:hover:not(:disabled) { background: var(--accent-bg); }
+
+  .row { display: flex; gap: 10px; }
+  .row > button { margin-top: 10px; }
+
+  /* 진행률 */
+  .progress { display: none; margin-top: 18px; }
+  .progress.on { display: block; }
+  .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent);
+             transition: width .15s linear; }
+  .status { margin-top: 10px; font-size: 14px; text-align: center; color: var(--accent); }
+  .status.ok  { color: var(--ok); }
+  .status.err { color: var(--err); }
+
+  /* 안내 박스 */
+  .note { border-radius: 10px; padding: 14px 16px; font-size: 14px; margin-top: 16px; }
+  .note.warn { background: #fff4e6; border: 1px solid #ffd8a8; color: #8a4b0a; }
+  .note.err  { background: #fff5f5; border: 1px solid #ffc9c9; color: #a92b2b; }
+  .note.info { background: var(--accent-bg); border: 1px solid #a5d8ff; color: #10508f; }
+  .note b { font-weight: 700; }
+  .note ol, .note ul { margin: 8px 0 0; padding-left: 20px; }
+  .note code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+
+  .fw-meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .fw-meta span { margin-right: 14px; }
+</style>
 </head>
 <body>
 
+<h1>CONVEX 업데이트</h1>
+<p class="sub">펌웨어와 GIF 슬롯을 브라우저에서 바로 기기에 전송합니다.</p>
+
 <div class="card">
-    <h2>CONVEX UF2 생성기</h2>
-    <p>파일을 선택하고 UF2로 변환하세요.</p>
 
-    <div class="config-section">
-        <label for="magicSelect">파일 종류</label>
-        <select id="magicSelect">
-            <option value="GIF_IMAGE">GIF 이미지</option>
-            <option value="GIF_MOVIE">GIF 동영상</option>
-        </select>
-        <!-- <p class="hint">* 이 문자열은 바이너리의 가장 앞에 32바이트 크기로 포함됩니다.</p> -->
+  <div class="conn">
+    <span class="dot" id="dot"></span>
+    <span class="conn-text" id="connText">연결되지 않음</span>
+    <button class="action ghost" id="btnConnect" style="width:auto;margin:0;padding:9px 16px;">기기 연결</button>
+  </div>
 
-        <label for="familyId">SLOT</label>
-        <select id="familyId">
-            <option value="0xFFFF0010">SLOT 1</option>
-            <option value="0xFFFF0011">SLOT 2</option>
-            <option value="0xFFFF0012">SLOT 3</option>
-            <option value="0xFFFF0013">SLOT 4</option>
-        </select>
+  <div id="noSupport" class="note err" hidden>
+    <b>이 브라우저는 지원하지 않습니다.</b>
+    WebHID 가 필요하므로 <b>Chrome</b> 또는 <b>Edge</b> 를 사용해 주세요.
+    (Safari · Firefox 는 WebHID 를 지원하지 않습니다)<br>
+    아래 <b>파일 다운로드</b> 는 모든 브라우저에서 사용할 수 있습니다.
+  </div>
 
-        <label for="fileInput">File (.gif)</label>
-        <input type="file" id="fileInput" accept=".gif">
+  <div id="oldFirmware" class="note warn" hidden>
+    <b>이 펌웨어는 웹 업데이트를 지원하지 않습니다.</b>
+    기기는 연결되었지만 업데이트 프로토콜에 응답하지 않습니다.
+    웹에서 바로 전송하려면 <b>먼저 펌웨어를 업데이트해야 합니다.</b>
+    <ol>
+      <li><b>펌웨어</b> 탭에서 <code>.uf2</code> 파일을 내려받습니다.</li>
+      <li>기기를 부트로더 모드로 진입시킵니다.</li>
+      <li>나타난 USB 드라이브에 <code>.uf2</code> 를 복사합니다.
+          (<b>드라이브에 바로 쓰기</b> 버튼을 쓰면 자동으로 복사됩니다)</li>
+    </ol>
+    업데이트 후 다시 연결하면 이 안내가 사라집니다.
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabGif" aria-selected="true" aria-controls="panelGif">GIF 슬롯</button>
+    <button class="tab" role="tab" id="tabFw"  aria-selected="false" aria-controls="panelFw">펌웨어</button>
+  </div>
+
+  <!-- ================= GIF 슬롯 ================= -->
+  <section class="panel" id="panelGif" role="tabpanel" aria-labelledby="tabGif">
+    <label for="gifSlot">슬롯</label>
+    <select id="gifSlot">
+      <option value="0">SLOT 1</option>
+      <option value="1">SLOT 2</option>
+      <option value="2">SLOT 3</option>
+      <option value="3">SLOT 4</option>
+    </select>
+
+    <label for="gifKind">파일 종류</label>
+    <select id="gifKind">
+      <option value="GIF_IMAGE">GIF 이미지</option>
+      <option value="GIF_MOVIE">GIF 동영상</option>
+    </select>
+
+    <label for="gifFile">GIF 파일</label>
+    <input type="file" id="gifFile" accept=".gif">
+    <p class="hint" id="gifHint">LCD 해상도는 <b>284 × 76</b> 입니다. 슬롯당 최대 약 2MB.</p>
+    <p class="hint" id="gifDim"></p>
+
+    <button class="action" id="btnGifSend" disabled>기기에 바로 전송</button>
+    <div class="row">
+      <button class="action ghost" id="btnGifDrive">드라이브에 바로 쓰기</button>
+      <button class="action ghost" id="btnGifDownload">UF2 다운로드</button>
     </div>
 
-    <button onclick="convert()">UF2 변환 및 다운로드</button>
-    <div id="status"></div>
+    <div class="progress" id="gifProgress">
+      <div class="bar"><i id="gifBar"></i></div>
+      <div class="status" id="gifStatus"></div>
+    </div>
+  </section>
+
+  <!-- ================= 펌웨어 ================= -->
+  <section class="panel" id="panelFw" role="tabpanel" aria-labelledby="tabFw" hidden>
+    <label for="fwSelect">펌웨어 버전</label>
+    <select id="fwSelect"><option>불러오는 중…</option></select>
+    <div class="fw-meta" id="fwMeta"></div>
+
+    <button class="action" id="btnFwSend" disabled>기기에 바로 전송</button>
+    <div class="row">
+      <button class="action ghost" id="btnFwDrive">드라이브에 바로 쓰기</button>
+      <button class="action ghost" id="btnFwDownload">UF2 다운로드</button>
+    </div>
+
+    <div class="progress" id="fwProgress">
+      <div class="bar"><i id="fwBar"></i></div>
+      <div class="status" id="fwStatus"></div>
+    </div>
+
+    <div class="note info" style="margin-top:22px;">
+      전송이 끝나면 기기가 스스로 재시작하면서 펌웨어를 적용합니다.
+      적용 중에는 <b>케이블을 뽑지 마세요.</b>
+      전송에 실패해도 기존 펌웨어는 그대로 남아 있어 다시 시도하면 됩니다.
+    </div>
+  </section>
+
 </div>
 
 <script>
-    async function convert() {
-        const fileInput = document.getElementById('fileInput');
-        const magicString = document.getElementById('magicSelect').value;
-        const familyId = parseInt(document.getElementById('familyId').value, 16);
-        const status = document.getElementById('status');
+"use strict";
 
-        if (!fileInput.files[0]) {
-            alert("파일을 선택해 주세요.");
-            return;
-        }
+//--------------------------------------------------------------------
+// 상수 — 펌웨어의 fwupdate.h 와 맞춰야 한다
+//--------------------------------------------------------------------
+const USB_VID          = 0x0483;
+const HID_USAGE_PAGE   = 0xFF60;   // VIA raw HID
+const HID_USAGE        = 0x61;
 
-        status.innerText = "Processing...";
-        const file = fileInput.files[0];
-        const reader = new FileReader();
+const REPORT_ID        = 0xC0;
+const REPORT_SIZE      = 32;
+const DATA_OFFSET      = 6;
+const DATA_SIZE        = REPORT_SIZE - DATA_OFFSET;   // 26
 
-        reader.onload = function(e) {
-            try {
-                const originalBin = new Uint8Array(e.target.result);
-                const fileSize = originalBin.length; // 파일 사이즈 추출
-                
-                // 1. 헤더 생성 (32바이트 고정)
-                const header = new Uint8Array(32);
-                const headerView = new DataView(header.buffer);
-                
-                // [1-1] Magic String 삽입 (오프셋 0부터)
-                for (let i = 0; i < Math.min(magicString.length, 16); i++) {
-                    header[i] = magicString.charCodeAt(i);
-                }
+const CMD_INFO   = 0x01;
+const CMD_BEGIN  = 0x02;
+const CMD_DATA   = 0x03;
+const CMD_END    = 0x04;
+const CMD_COMMIT = 0x05;
+const CMD_STATUS = 0x06;
 
-                // [1-2] 파일 사이즈 삽입 (오프셋 16에 4바이트 정수로 기록)
-                // Little Endian 방식으로 저장 (대부분의 MCU 호환)
-                headerView.setUint32(16, fileSize, true);
+const TARGET_FIRM = 0;
+const TARGET_SLOT = 1;
 
-                // 2. 데이터 병합 (헤더 32바이트 + 원본 바이너리)
-                const combinedData = new Uint8Array(header.length + originalBin.length);
-                combinedData.set(header, 0);
-                combinedData.set(originalBin, header.length);
+const ERR_TEXT = {
+  0x00: "정상", 0x01: "알 수 없는 명령", 0x02: "잘못된 순서",
+  0x03: "잘못된 대상/슬롯", 0x04: "크기 초과", 0x05: "지우기 실패",
+  0x06: "기록 실패", 0x07: "읽기 실패", 0x08: "검증 실패(CRC 불일치)",
+  0x09: "다른 작업 진행 중",
+};
 
-                // 3. UF2 블록 생성 (기존과 동일)
-                const blocks = [];
-                const numBlocks = Math.ceil(combinedData.length / 256);
+const LCD_WIDTH        = 284;
+const LCD_HEIGHT       = 76;
 
-                for (let i = 0; i < numBlocks; i++) {
-                    const block = new Uint8Array(512);
-                    const view = new DataView(block.buffer);
+const SLOT_FAMILY_BASE = 0xFFFF0010;
+const FIRM_FAMILY      = 0xFFFF0002;
+const MANIFEST_URL     = "firmware/release/manifest.json";
+const RELEASE_DIR      = "firmware/release/";
 
-                    view.setUint32(0, 0x0A324655, true);
-                    view.setUint32(4, 0x9E5D5157, true);
-                    view.setUint32(8, 0x00002000, true);
-                    view.setUint32(12, 0x00000000 + (i * 256), true);
-                    view.setUint32(16, 256, true);
-                    view.setUint32(20, i, true);
-                    view.setUint32(24, numBlocks, true);
-                    view.setUint32(28, familyId, true);
+//--------------------------------------------------------------------
+// CRC-16 (poly 0x8005, MSB first, init 0) — 펌웨어 utilCalcCRC() 와 동일
+//--------------------------------------------------------------------
+const CRC_TABLE = (() => {
+  const t = new Uint16Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i << 8;
+    for (let j = 0; j < 8; j++) c = (c & 0x8000) ? ((c << 1) ^ 0x8005) & 0xFFFF : (c << 1) & 0xFFFF;
+    t[i] = c;
+  }
+  return t;
+})();
 
-                    const start = i * 256;
-                    const end = Math.min(start + 256, combinedData.length);
-                    block.set(combinedData.slice(start, end), 32);
+function crc16(bytes) {
+  let crc = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = ((crc << 8) ^ CRC_TABLE[((crc >> 8) ^ bytes[i]) & 0xFF]) & 0xFFFF;
+  }
+  return crc;
+}
 
-                    view.setUint32(508, 0x0AB16F30, true);
-                    blocks.push(block);
-                }
+//--------------------------------------------------------------------
+// 장치 통신
+//--------------------------------------------------------------------
+const dev = {
+  hid: null,
+  info: null,        // { proto, slotMax, firmMax, slotMax bytes, name, version }
+  waiters: new Map(),
+};
 
-                // 4. 합치기 및 다운로드 (파일명 뒤에 .uf2 강제 적용)
-                const finalBuffer = new Uint8Array(blocks.length * 512);
-                blocks.forEach((b, idx) => finalBuffer.set(b, idx * 512));
+function onInputReport(e) {
+  // 이 장치는 리포트 ID 를 쓰지 않으므로 데이터 첫 바이트가 우리 ID 다.
+  const buf = new Uint8Array(e.data.buffer);
+  if (buf[0] !== REPORT_ID) return;
 
-                const blob = new Blob([finalBuffer], { type: 'application/octet-stream' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                // 파일 확장자 처리 최적화
-                const downloadName = file.name.split('.').slice(0, -1).join('.') + ".uf2";
-                a.download = downloadName;
-                a.click();
-                
-                status.innerText = `변환 완료! (Size: ${fileSize} bytes)`;
-            } catch (err) {
-                status.innerText = "에러: " + err.message;
-            }
-        };
-        reader.readAsArrayBuffer(file);
+  const cmd = buf[1];
+  const w = dev.waiters.get(cmd);
+  if (w) { dev.waiters.delete(cmd); w.resolve(buf); }
+}
+
+async function sendReport(bytes) {
+  // reportId 0 = numbered report 를 쓰지 않는 장치. 데이터 첫 바이트가 우리 ID 다.
+  await dev.hid.sendReport(0, bytes);
+}
+
+function waitFor(cmd, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      dev.waiters.delete(cmd);
+      reject(new Error("장치가 응답하지 않습니다"));
+    }, timeoutMs);
+    dev.waiters.set(cmd, {
+      resolve: (buf) => { clearTimeout(timer); resolve(buf); },
+    });
+  });
+}
+
+async function command(cmd, payload, timeoutMs = 3000) {
+  const buf = new Uint8Array(REPORT_SIZE);
+  buf[0] = REPORT_ID;
+  buf[1] = cmd;
+  if (payload) buf.set(payload, 2);
+
+  const waiter = waitFor(cmd, timeoutMs);
+  await sendReport(buf);
+  return waiter;
+}
+
+function u32(v) { return [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >>> 24) & 0xFF]; }
+
+async function connect() {
+  const filters = [{ vendorId: USB_VID, usagePage: HID_USAGE_PAGE, usage: HID_USAGE }];
+  let list = await navigator.hid.requestDevice({ filters });
+  if (!list.length) return;
+
+  const hid = list[0];
+  if (!hid.opened) await hid.open();
+
+  hid.addEventListener("inputreport", onInputReport);
+  dev.hid = hid;
+
+  setConn("연결됨 — 확인 중…", "on");
+
+  // INFO 에 응답이 없으면 웹 업데이트를 지원하지 않는 구형 펌웨어다.
+  try {
+    const r = await command(CMD_INFO, null, 1500);
+    dev.info = parseInfo(r);
+    ui.oldFirmware.hidden = true;
+    setConn(`<b>${dev.info.name}</b> · 펌웨어 <b>${dev.info.version}</b> · 프로토콜 v${dev.info.proto}`, "on");
+  } catch (err) {
+    dev.info = null;
+    ui.oldFirmware.hidden = false;
+    setConn("연결됨 — 웹 업데이트 미지원 펌웨어", "bad");
+  }
+  refreshButtons();
+}
+
+function parseInfo(buf) {
+  const proto   = buf[3];
+  const slotMax = buf[4];
+  const dv = new DataView(buf.buffer, buf.byteOffset);
+  const firmMax = dv.getUint32(5, true);
+  const slotSize = dv.getUint32(9, true);
+
+  // 13 바이트부터 NUL 로 구분된 보드명 · 버전 문자열
+  const tail = buf.slice(13);
+  const parts = new TextDecoder().decode(tail).split("\0").filter(s => s.length);
+  return {
+    proto, slotMax, firmMax, slotSize,
+    name: parts[0] || "CONVEX",
+    version: parts[1] || "?",
+  };
+}
+
+//--------------------------------------------------------------------
+// 전송 (펌웨어 / 슬롯 공통)
+//--------------------------------------------------------------------
+async function transfer(target, slot, data, onProgress) {
+  const total = data.length;
+
+  onProgress(0, "영역을 지우는 중…");
+  const beginPayload = new Uint8Array([target, slot, ...u32(total)]);
+  const rb = await command(CMD_BEGIN, beginPayload, 30000);
+  if (rb[2] !== 0) throw new Error("BEGIN 실패: " + (ERR_TEXT[rb[2]] || rb[2]));
+
+  onProgress(0, "전송 중…");
+
+  // 리포트마다 await 하면 왕복 지연이 그대로 쌓여 몇 배 느려진다.
+  // 장치쪽 수신 큐(128개)를 넘지 않는 선에서 여러 개를 겹쳐 보낸다.
+  const WINDOW = 16;
+  let pending = [];
+
+  for (let off = 0; off < total; off += DATA_SIZE) {
+    const len = Math.min(DATA_SIZE, total - off);
+    const pkt = new Uint8Array(REPORT_SIZE);
+    pkt[0] = REPORT_ID;
+    pkt[1] = CMD_DATA;
+    pkt[2] = off & 0xFF;
+    pkt[3] = (off >> 8) & 0xFF;
+    pkt[4] = (off >> 16) & 0xFF;
+    pkt[5] = (off >>> 24) & 0xFF;
+    pkt.set(data.subarray(off, off + len), DATA_OFFSET);
+
+    pending.push(sendReport(pkt));
+
+    if (pending.length >= WINDOW) {
+      await Promise.all(pending);
+      pending = [];
+      onProgress(off / total, `전송 중… ${Math.round(off / 1024)} / ${Math.round(total / 1024)} KB`);
     }
+  }
+  await Promise.all(pending);
+
+  onProgress(1, "검증 중…");
+  const crc = crc16(data);
+  const re = await command(CMD_END, new Uint8Array([crc & 0xFF, (crc >> 8) & 0xFF]), 15000);
+  if (re[2] !== 0) throw new Error("검증 실패: " + (ERR_TEXT[re[2]] || re[2]));
+}
+
+//--------------------------------------------------------------------
+// UF2 생성 / 다운로드 / 드라이브 쓰기
+//--------------------------------------------------------------------
+function makeUf2(payload, familyId) {
+  const numBlocks = Math.ceil(payload.length / 256);
+  const out = new Uint8Array(numBlocks * 512);
+
+  for (let i = 0; i < numBlocks; i++) {
+    const block = out.subarray(i * 512, (i + 1) * 512);
+    const dv = new DataView(block.buffer, block.byteOffset, 512);
+    dv.setUint32(0,  0x0A324655, true);
+    dv.setUint32(4,  0x9E5D5157, true);
+    dv.setUint32(8,  0x00002000, true);
+    dv.setUint32(12, i * 256, true);
+    dv.setUint32(16, 256, true);
+    dv.setUint32(20, i, true);
+    dv.setUint32(24, numBlocks, true);
+    dv.setUint32(28, familyId, true);
+    block.set(payload.subarray(i * 256, Math.min((i + 1) * 256, payload.length)), 32);
+    dv.setUint32(508, 0x0AB16F30, true);
+  }
+  return out;
+}
+
+function download(bytes, name) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/octet-stream" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function writeToDrive(bytes, name, setStatus) {
+  if (!window.showDirectoryPicker) {
+    throw new Error("이 브라우저는 드라이브 직접 쓰기를 지원하지 않습니다. UF2 를 내려받아 복사해 주세요.");
+  }
+
+  setStatus("드라이브를 선택하세요…");
+  const dir = await window.showDirectoryPicker({ mode: "readwrite" });
+
+  // 엉뚱한 드라이브에 쓰지 않도록 부트로더 드라이브인지 확인한다.
+  let readme = "";
+  try {
+    const fh = await dir.getFileHandle("README.TXT");
+    readme = await (await fh.getFile()).text();
+  } catch (e) { /* 없으면 아래에서 걸린다 */ }
+
+  if (!/BARAM BOOT/i.test(readme)) {
+    throw new Error("선택한 드라이브가 부트로더 드라이브가 아닙니다. 기기를 부트로더 모드로 두고 다시 시도하세요.");
+  }
+
+  setStatus("복사 중…");
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(bytes);
+  try {
+    await w.close();
+  } catch (e) {
+    // 마지막 블록을 받으면 기기가 재시작하면서 드라이브가 사라진다. 정상이다.
+  }
+}
+
+//--------------------------------------------------------------------
+// UI
+//--------------------------------------------------------------------
+const ui = {};
+["dot","connText","btnConnect","noSupport","oldFirmware",
+ "tabGif","tabFw","panelGif","panelFw",
+ "gifSlot","gifKind","gifFile","gifHint","gifDim","btnGifSend","btnGifDrive","btnGifDownload",
+ "gifProgress","gifBar","gifStatus",
+ "fwSelect","fwMeta","btnFwSend","btnFwDrive","btnFwDownload",
+ "fwProgress","fwBar","fwStatus"].forEach(id => ui[id] = document.getElementById(id));
+
+function setConn(html, cls) {
+  ui.connText.innerHTML = html;
+  ui.dot.className = "dot" + (cls ? " " + cls : "");
+}
+
+function makeProgress(barEl, statusEl, wrapEl) {
+  return {
+    show() { wrapEl.classList.add("on"); statusEl.className = "status"; },
+    set(ratio, text) { barEl.style.width = Math.round(ratio * 100) + "%"; statusEl.textContent = text; },
+    done(text) { barEl.style.width = "100%"; statusEl.textContent = text; statusEl.className = "status ok"; },
+    fail(text) { statusEl.textContent = text; statusEl.className = "status err"; },
+  };
+}
+const gifProg = makeProgress(ui.gifBar, ui.gifStatus, ui.gifProgress);
+const fwProg  = makeProgress(ui.fwBar,  ui.fwStatus,  ui.fwProgress);
+
+function selectTab(which) {
+  const isGif = which === "gif";
+  ui.tabGif.setAttribute("aria-selected", String(isGif));
+  ui.tabFw.setAttribute("aria-selected", String(!isGif));
+  ui.panelGif.hidden = !isGif;
+  ui.panelFw.hidden  = isGif;
+}
+ui.tabGif.onclick = () => selectTab("gif");
+ui.tabFw.onclick  = () => selectTab("fw");
+
+function refreshButtons() {
+  const ready = !!(dev.hid && dev.info);
+  ui.btnGifSend.disabled = !ready || !ui.gifFile.files[0];
+  ui.btnFwSend.disabled  = !ready || !currentFirmware();
+}
+
+// GIF 논리 화면 크기는 헤더 6..9 바이트에 리틀엔디언으로 들어 있다.
+function readGifSize(bytes) {
+  const sig = String.fromCharCode(bytes[0], bytes[1], bytes[2]);
+  if (sig !== "GIF" || bytes.length < 10) return null;
+  const dv = new DataView(bytes.buffer, bytes.byteOffset);
+  return { w: dv.getUint16(6, true), h: dv.getUint16(8, true) };
+}
+
+ui.gifFile.onchange = async () => {
+  const f = ui.gifFile.files[0];
+  ui.gifDim.textContent = "";
+  ui.gifDim.style.color = "";
+
+  if (!f) { refreshButtons(); return; }
+
+  const head = new Uint8Array(await f.slice(0, 10).arrayBuffer());
+  const size = readGifSize(head);
+
+  if (!size) {
+    ui.gifDim.textContent = `${f.name} · ${(f.size / 1024).toFixed(1)} KB — GIF 파일이 아닌 것 같습니다`;
+    ui.gifDim.style.color = "var(--err)";
+  } else {
+    const fit = size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT;
+    ui.gifDim.textContent =
+      `${f.name} · ${(f.size / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` +
+      (fit ? "" : ` — LCD(${LCD_WIDTH} × ${LCD_HEIGHT}) 보다 커서 잘려 보일 수 있습니다`);
+    ui.gifDim.style.color = fit ? "var(--ok)" : "var(--warn)";
+  }
+  refreshButtons();
+};
+
+ui.btnConnect.onclick = async () => {
+  try { await connect(); }
+  catch (e) { setConn("연결 실패: " + e.message, "bad"); }
+};
+
+//--------------------------------------------------------------------
+// 펌웨어 목록
+//--------------------------------------------------------------------
+let manifest = { firmwares: [] };
+
+function currentFirmware() {
+  return manifest.firmwares[ui.fwSelect.selectedIndex] || null;
+}
+
+function showFwMeta() {
+  const f = currentFirmware();
+  if (!f) { ui.fwMeta.textContent = ""; return; }
+  const installed = dev.info && dev.info.version === f.version;
+  ui.fwMeta.innerHTML =
+    `<span>크기 ${(f.size / 1024).toFixed(1)} KB</span>` +
+    `<span>빌드 ${f.date}</span>` +
+    `<span>CRC ${f.crc}</span>` +
+    (installed ? `<span style="color:var(--ok)">현재 설치된 버전</span>` : "");
+}
+
+async function loadManifest() {
+  try {
+    const res = await fetch(MANIFEST_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    manifest = await res.json();
+
+    ui.fwSelect.innerHTML = "";
+    manifest.firmwares.forEach(f => {
+      const o = document.createElement("option");
+      o.textContent = `${f.board} ${f.version}` + (f.note ? ` — ${f.note}` : "");
+      ui.fwSelect.appendChild(o);
+    });
+    showFwMeta();
+  } catch (e) {
+    ui.fwSelect.innerHTML = "<option>펌웨어 목록을 불러오지 못했습니다</option>";
+  }
+  refreshButtons();
+}
+ui.fwSelect.onchange = () => { showFwMeta(); refreshButtons(); };
+
+async function fetchFirmwareBin(f) {
+  const res = await fetch(RELEASE_DIR + f.bin, { cache: "no-store" });
+  if (!res.ok) throw new Error("펌웨어 파일을 받지 못했습니다");
+  const data = new Uint8Array(await res.arrayBuffer());
+
+  const crc = crc16(data);
+  if (f.crc && parseInt(f.crc, 16) !== crc) {
+    throw new Error("내려받은 펌웨어가 손상되었습니다 (CRC 불일치)");
+  }
+  return data;
+}
+
+//--------------------------------------------------------------------
+// GIF 데이터 구성 : 32바이트 헤더(매직 16 + 크기 4 + 예약) + 원본
+//--------------------------------------------------------------------
+async function buildGifPayload() {
+  const file = ui.gifFile.files[0];
+  const raw = new Uint8Array(await file.arrayBuffer());
+
+  const out = new Uint8Array(32 + raw.length);
+  const magic = ui.gifKind.value;
+  for (let i = 0; i < Math.min(magic.length, 16); i++) out[i] = magic.charCodeAt(i);
+  new DataView(out.buffer).setUint32(16, raw.length, true);
+  out.set(raw, 32);
+  return out;
+}
+
+//--------------------------------------------------------------------
+// 동작 연결
+//--------------------------------------------------------------------
+async function guard(prog, btns, fn) {
+  btns.forEach(b => b.disabled = true);
+  prog.show();
+  try {
+    await fn();
+  } catch (e) {
+    prog.fail(e.message || String(e));
+  } finally {
+    btns.forEach(b => b.disabled = false);
+    refreshButtons();
+  }
+}
+
+ui.btnGifSend.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
+  const payload = await buildGifPayload();
+  const slot = parseInt(ui.gifSlot.value, 10);
+  await transfer(TARGET_SLOT, slot, payload, (r, t) => gifProg.set(r, t));
+  gifProg.done(`SLOT ${slot + 1} 저장 완료 (${(payload.length / 1024).toFixed(1)} KB)`);
+});
+
+ui.btnGifDownload.onclick = () => guard(gifProg, [ui.btnGifDownload], async () => {
+  if (!ui.gifFile.files[0]) throw new Error("GIF 파일을 선택해 주세요");
+  const payload = await buildGifPayload();
+  const slot = parseInt(ui.gifSlot.value, 10);
+  const uf2 = makeUf2(payload, SLOT_FAMILY_BASE + slot);
+  const base = ui.gifFile.files[0].name.replace(/\.[^.]+$/, "");
+  download(uf2, `${base}-slot${slot + 1}.uf2`);
+  gifProg.done("UF2 파일을 내려받았습니다");
+});
+
+ui.btnGifDrive.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
+  if (!ui.gifFile.files[0]) throw new Error("GIF 파일을 선택해 주세요");
+  const payload = await buildGifPayload();
+  const slot = parseInt(ui.gifSlot.value, 10);
+  const uf2 = makeUf2(payload, SLOT_FAMILY_BASE + slot);
+  await writeToDrive(uf2, `slot${slot + 1}.uf2`, t => gifProg.set(0.5, t));
+  gifProg.done("드라이브에 복사했습니다");
+});
+
+ui.btnFwSend.onclick = () => guard(fwProg, [ui.btnFwSend, ui.btnFwDrive, ui.btnFwDownload], async () => {
+  const f = currentFirmware();
+  if (!f) throw new Error("펌웨어를 선택해 주세요");
+
+  fwProg.set(0, "펌웨어를 내려받는 중…");
+  const data = await fetchFirmwareBin(f);
+
+  await transfer(TARGET_FIRM, 0, data, (r, t) => fwProg.set(r, t));
+
+  fwProg.set(1, "적용 중… 케이블을 뽑지 마세요");
+  const rc = await command(CMD_COMMIT, null, 5000);
+  if (rc[2] !== 0) throw new Error("적용 실패: " + (ERR_TEXT[rc[2]] || rc[2]));
+
+  fwProg.done(`${f.version} 적용을 시작했습니다. 기기가 재시작됩니다.`);
+});
+
+ui.btnFwDownload.onclick = () => guard(fwProg, [ui.btnFwDownload], async () => {
+  const f = currentFirmware();
+  if (!f) throw new Error("펌웨어를 선택해 주세요");
+  if (f.uf2) {
+    const a = document.createElement("a");
+    a.href = RELEASE_DIR + f.uf2; a.download = f.uf2; a.click();
+  } else {
+    const data = await fetchFirmwareBin(f);
+    download(makeUf2(data, FIRM_FAMILY), `${f.board}-${f.version}.uf2`);
+  }
+  fwProg.done("UF2 파일을 내려받았습니다");
+});
+
+ui.btnFwDrive.onclick = () => guard(fwProg, [ui.btnFwSend, ui.btnFwDrive, ui.btnFwDownload], async () => {
+  const f = currentFirmware();
+  if (!f) throw new Error("펌웨어를 선택해 주세요");
+  const data = await fetchFirmwareBin(f);
+  await writeToDrive(makeUf2(data, FIRM_FAMILY), `${f.board}-${f.version}.uf2`, t => fwProg.set(0.5, t));
+  fwProg.done("드라이브에 복사했습니다");
+});
+
+function handleDisconnect(e) {
+  if (dev.hid && e.device === dev.hid) {
+    dev.hid = null;
+    dev.info = null;
+    dev.waiters.clear();
+    ui.oldFirmware.hidden = true;
+    setConn("연결되지 않음", "");
+    refreshButtons();
+  }
+}
+
+//--------------------------------------------------------------------
+// 시작
+//--------------------------------------------------------------------
+if ("hid" in navigator) {
+  navigator.hid.addEventListener("disconnect", handleDisconnect);
+}
+if (!("hid" in navigator)) {
+  ui.noSupport.hidden = false;
+  ui.btnConnect.disabled = true;
+}
+loadManifest();
 </script>
 </body>
 </html>

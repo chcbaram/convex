@@ -1,0 +1,15 @@
+{
+  "board": "CONVEX",
+  "firmwares": [
+    {
+      "version": "V260814R1",
+      "board": "CONVEX",
+      "date": "2026-08-14",
+      "bin": "CONVEX-V260814R1.bin",
+      "uf2": "CONVEX-V260814R1.uf2",
+      "size": 678456,
+      "crc": "0x7878",
+      "note": ""
+    }
+  ]
+}
