@@ -108,6 +108,15 @@
   input[type=datetime-local] { width: 100%; padding: 11px; border: 1px solid #ced4da;
                                border-radius: 8px; font-size: 14px; font-family: inherit; }
 
+  .fw-current { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px;
+                background: #fbfcfd; font-size: 14px; margin-bottom: 4px; }
+  .fw-current b { font-weight: 700; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 20px;
+           font-size: 12px; font-weight: 700; margin-left: 8px; vertical-align: 1px; }
+  .badge.same { background: #ebfbee; color: var(--ok); }
+  .badge.up   { background: var(--accent-bg); color: var(--accent); }
+  .badge.down { background: #fff4e6; color: var(--warn); }
+
   .fw-meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
   .fw-meta span { margin-right: 14px; }
   .fw-notes { margin: 12px 0 0; padding: 12px 16px 12px 32px; font-size: 13.5px;
@@ -199,7 +208,9 @@
 
   <!-- ================= 펌웨어 ================= -->
   <section class="panel" id="panelFw" role="tabpanel" aria-labelledby="tabFw" hidden>
-    <label for="fwSelect">펌웨어 버전</label>
+    <div class="fw-current" id="fwCurrent">기기를 연결하면 현재 버전을 보여줍니다</div>
+
+    <label for="fwSelect">설치할 버전</label>
     <select id="fwSelect"><option>불러오는 중…</option></select>
     <div class="fw-meta" id="fwMeta"></div>
     <ul class="fw-notes" id="fwNotes" hidden></ul>
@@ -392,6 +403,7 @@ async function connect() {
     setConn("연결됨 — 웹 업데이트 미지원 펌웨어", "bad");
   }
   refreshButtons();
+  showFwMeta();
   await readSlots();
   await readRtc();
 }
@@ -535,7 +547,7 @@ const ui = {};
  "gifKind","gifFile","gifName","gifNameHint","gifHint","gifDim","gifPreviewWrap","gifPreview",
  "slotList","btnSlotRefresh","btnGifSend","btnGifDrive","btnGifDownload",
  "gifProgress","gifBar","gifStatus",
- "fwSelect","fwMeta","fwNotes","btnFwSend","btnFwDrive","btnFwDownload",
+ "fwCurrent","fwSelect","fwMeta","fwNotes","btnFwSend","btnFwDrive","btnFwDownload",
  "fwProgress","fwBar","fwStatus",
  "tabSet","panelSet","rtcNow","rtcDiff","btnRtcRead","btnRtcSync","rtcManual","btnRtcSet",
  "rtcProgress","rtcBar","rtcStatus"].forEach(id => ui[id] = document.getElementById(id));
@@ -854,7 +866,37 @@ function currentFirmware() {
   return manifest.firmwares[ui.fwSelect.selectedIndex] || null;
 }
 
+// 버전 형식 : V + YYMMDD + R + 리비전
+function verKey(v) {
+  const m = /^V(\d{6})R(\d+)$/.exec(v || "");
+  return m ? Number(m[1]) * 1000 + Number(m[2]) : null;
+}
+
+function compareVer(a, b) {
+  const ka = verKey(a), kb = verKey(b);
+  if (ka === null || kb === null) return (a === b) ? 0 : null;
+  return ka === kb ? 0 : (ka > kb ? 1 : -1);
+}
+
+function showFwCurrent() {
+  if (!dev.info) {
+    ui.fwCurrent.textContent = "기기를 연결하면 현재 버전을 보여줍니다";
+    return;
+  }
+
+  const f = currentFirmware();
+  const cmp = f ? compareVer(f.version, dev.info.version) : null;
+  const badge =
+    cmp === 0  ? '<span class="badge same">같은 버전</span>' :
+    cmp === 1  ? '<span class="badge up">업그레이드</span>' :
+    cmp === -1 ? '<span class="badge down">이전 버전으로 되돌림</span>' : "";
+
+  ui.fwCurrent.innerHTML =
+    `현재 기기 — <b>${dev.info.name} ${dev.info.version}</b>${badge}`;
+}
+
 function showFwMeta() {
+  showFwCurrent();
   const f = currentFirmware();
 
   const notes = f && (f.notes || (f.note ? [f.note] : []));
@@ -869,12 +911,10 @@ function showFwMeta() {
   }
 
   if (!f) { ui.fwMeta.textContent = ""; return; }
-  const installed = dev.info && dev.info.version === f.version;
   ui.fwMeta.innerHTML =
     `<span>크기 ${(f.size / 1024).toFixed(1)} KB</span>` +
     `<span>빌드 ${f.date}</span>` +
-    `<span>CRC ${f.crc}</span>` +
-    (installed ? `<span style="color:var(--ok)">현재 설치된 버전</span>` : "");
+    `<span>CRC ${f.crc}</span>`;
 }
 
 async function loadManifest() {
@@ -1035,6 +1075,7 @@ function handleDisconnect(e) {
     renderSlots();
     ui.rtcNow.textContent = "연결하면 현재 시간을 보여줍니다";
     ui.rtcDiff.textContent = "";
+    showFwMeta();
     refreshButtons();
   }
 }
