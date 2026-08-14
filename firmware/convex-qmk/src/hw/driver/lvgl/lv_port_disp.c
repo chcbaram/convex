@@ -92,6 +92,15 @@ static void disp_flush(lv_display_t * disp_drv, const lv_area_t * area, uint8_t 
 {
   if(disp_flush_enabled)
   {
+    // 프레임버퍼에 직접 그리므로(DIRECT) 화면 전체를 한 번만 보내면 된다.
+    // 한 프레임에서 바뀐 영역이 여러 개면 이 함수가 그 수만큼 불리는데,
+    // 그때마다 보내면 전체 전송이 여러 번 일어나 그만큼 느려진다.
+    // 객체가 많은 화면(스펙트럼 앱)이 GIF 보다 느렸던 이유다.
+    if (lv_display_flush_is_last(disp_drv) != true)
+    {
+      return;
+    }
+
     if (lcdDrawAvailable())
     {
       lcdRequestDraw();
