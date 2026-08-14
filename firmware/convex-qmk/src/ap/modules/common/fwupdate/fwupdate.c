@@ -1,6 +1,8 @@
 #include "module.h"
 #include "fwupdate.h"
 #include "util_core.h"
+#include "launcher/launcher.h"
+#include "app/gif/gif_app.h"
 
 
 #define FWUPDATE_SECTOR_SIZE      (64*1024)      // QSPI(W25Q128) block erase 단위
@@ -26,6 +28,10 @@ static void fwupdate_cmd_data(uint8_t *p_data);
 static void fwupdate_cmd_end(uint8_t *p_data);
 static void fwupdate_cmd_commit(void);
 static void fwupdate_cmd_status(void);
+static void fwupdate_cmd_slot(uint8_t *p_data);
+static void fwupdate_cmd_rtc(uint8_t *p_data);
+static void fwupdate_cmd_show(uint8_t *p_data);
+static void fwupdate_cmd_read(uint8_t *p_data);
 static bool fwupdate_erase(uint32_t addr, uint32_t size);
 static bool fwupdate_page_store(uint32_t addr, uint8_t *p_data, uint32_t length);
 static bool fwupdate_page_flush(void);
@@ -139,6 +145,22 @@ void fwupdate_process(uint8_t *p_data)
 
     case FWUPDATE_CMD_STATUS:
       fwupdate_cmd_status();
+      break;
+
+    case FWUPDATE_CMD_SLOT:
+      fwupdate_cmd_slot(p_data);
+      break;
+
+    case FWUPDATE_CMD_RTC:
+      fwupdate_cmd_rtc(p_data);
+      break;
+
+    case FWUPDATE_CMD_SHOW:
+      fwupdate_cmd_show(p_data);
+      break;
+
+    case FWUPDATE_CMD_READ:
+      fwupdate_cmd_read(p_data);
       break;
 
     default:
@@ -451,6 +473,75 @@ void fwupdate_cmd_slot(uint8_t *p_data)
   }
 
   fwupdate_send_resp(FWUPDATE_CMD_SLOT, FWUPDATE_OK, buf, sizeof(buf));
+}
+
+void fwupdate_cmd_show(uint8_t *p_data)
+{
+  uint8_t slot = p_data[2];
+
+  if (slot >= FWUPDATE_SLOT_MAX_CH)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_SHOW, FWUPDATE_ERR_TARGET, NULL, 0);
+    return;
+  }
+
+  // 실제 전환은 UI 스레드가 한다. 여기서는 요청만 남긴다.
+  gifReqSlot(slot);
+  uiReqApp(APP_ID_SLOT);
+
+  fwupdate_send_resp(FWUPDATE_CMD_SHOW, FWUPDATE_OK, &slot, 1);
+}
+
+void fwupdate_cmd_read(uint8_t *p_data)
+{
+  uint8_t  slot = p_data[2];
+  uint32_t offset;
+  uint32_t slot_addr;
+  uint32_t file_size = 0;
+  uint32_t length;
+  uint8_t  buf[FWUPDATE_REPORT_SIZE - 3];
+
+
+  memcpy(&offset, &p_data[3], 4);
+  memset(buf, 0, sizeof(buf));
+
+  if (slot >= FWUPDATE_SLOT_MAX_CH)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_READ, FWUPDATE_ERR_TARGET, NULL, 0);
+    return;
+  }
+
+  slot_addr = FLASH_ADDR_UPDATE_SLOT + (slot * FLASH_SIZE_SLOT) + FLASH_SIZE_TAG;
+
+  if (flashRead(slot_addr + 16, (uint8_t *)&file_size, 4) != true)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_READ, FWUPDATE_ERR_READ, NULL, 0);
+    return;
+  }
+
+  if (file_size == 0 || file_size == 0xFFFFFFFF || file_size > FWUPDATE_SLOT_DATA_MAX ||
+      offset >= file_size)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_READ, FWUPDATE_ERR_SIZE, NULL, 0);
+    return;
+  }
+
+  length = file_size - offset;
+  if (length > FWUPDATE_READ_DATA_SIZE)
+    length = FWUPDATE_READ_DATA_SIZE;
+
+  // 헤더 32바이트 뒤가 원본 GIF 다.
+  if (flashRead(slot_addr + 32 + offset, &buf[FWUPDATE_READ_DATA_OFS - 3], length) != true)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_READ, FWUPDATE_ERR_READ, NULL, 0);
+    return;
+  }
+
+  buf[0] = slot;
+  memcpy(&buf[1], &offset, 4);
+  buf[5] = (uint8_t)length;
+
+  fwupdate_send_resp(FWUPDATE_CMD_READ, FWUPDATE_OK, buf, sizeof(buf));
 }
 
 void fwupdate_cmd_rtc(uint8_t *p_data)

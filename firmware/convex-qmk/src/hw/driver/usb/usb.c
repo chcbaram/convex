@@ -58,9 +58,32 @@ bool usbInit(void)
   return true;
 }
 
+// 부트로더에서 점프해 오면 USB 코어가 연결된 상태 그대로 남는다.
+// 부트로더는 클럭만 끄고(usbDeInit) 버스에서 분리하지는 않기 때문에,
+// 호스트는 부트로더(MSC) 장치가 아직 붙어 있는 것으로 보고 앱이 올라와도
+// 다시 열거하지 않는다. 그래서 앱의 HID 인터페이스가 보이지 않는다.
+//
+// 초기화 전에 D+ 풀업을 떼어 호스트가 분리를 인식하게 한다. 그 뒤
+// USBD_Start() 가 다시 연결하면 호스트가 새 디스크립터로 열거한다.
+static void usbDeInitPrev(void)
+{
+  USB_OTG_DeviceTypeDef *p_dev;
+
+  // 클럭이 꺼진 채로는 레지스터에 쓸 수 없다.
+  __HAL_RCC_USB_OTG_FS_CLK_ENABLE();
+
+  p_dev = (USB_OTG_DeviceTypeDef *)((uint32_t)USB_OTG_FS + USB_OTG_DEVICE_BASE);
+  p_dev->DCTL |= USB_OTG_DCTL_SDIS;
+
+  // 호스트가 분리를 인식할 시간. 짧으면 그대로 붙어 있는 것으로 본다.
+  delay(100);
+}
+
 bool usbBegin(UsbMode_t usb_mode)
 {
   is_init = true;
+
+  usbDeInitPrev();
 
   if (usb_mode == USB_CDC_MODE)
   {

@@ -12,6 +12,9 @@
 bool launcherInit(void);
 void launcherUpdate(void);
 
+// 지정한 앱으로 전환한다. 모르는 id 는 무시한다.
+void uiReqApp(uint8_t app_id);
+
 
 #ifdef __cplusplus
 }

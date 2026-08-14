@@ -138,6 +138,17 @@ void uiReqAppExit(void)
   app_args.is_exit = true;
 }
 
+void uiReqApp(uint8_t app_id)
+{
+  if (uiGetAppInfo(app_id) == NULL)
+    return;
+
+  req_run_id = app_id;
+
+  if (req_run_id != cur_run_id)
+    uiReqAppExit();
+}
+
 void launcherUpdate(void)
 {
   if (req_run_id == cur_run_id)

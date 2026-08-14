@@ -94,10 +94,17 @@
           border-top: 1px solid var(--line); font-size: 14px; cursor: pointer; }
   .slot:first-child { border-top: none; }
   .slot:hover { background: #f8f9fa; }
-  .slot input { margin: 0; flex: none; }
+  .slot .pick { display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer; }
+  .slot .pick input { margin: 0; flex: none; }
   .slot .name { font-weight: 600; width: 66px; flex: none; }
   .slot .desc { color: var(--muted); flex: 1; }
   .slot .warn { color: var(--warn); font-weight: 600; }
+  .slot .tools { display: flex; gap: 4px; flex: none; }
+  .slot .tools button { border: 1px solid var(--line); background: #fff; color: var(--accent);
+                        border-radius: 6px; font: inherit; font-size: 12px; font-weight: 600;
+                        padding: 4px 8px; cursor: pointer; }
+  .slot .tools button:hover:not(:disabled) { background: var(--accent-bg); }
+  .slot .tools button:disabled { color: var(--muted); cursor: not-allowed; }
   .linkbtn { border: none; background: none; color: var(--accent); cursor: pointer;
              font: inherit; font-weight: 600; font-size: 13px; padding: 0 2px; }
   .linkbtn:hover { text-decoration: underline; }
@@ -172,7 +179,8 @@
     <p class="hint" id="gifDim"></p>
     <p class="hint">예제 불러오기 —
       <button class="linkbtn" type="button" data-sample="sample-image.gif">이미지</button> ·
-      <button class="linkbtn" type="button" data-sample="sample-anim.gif">애니메이션</button>
+      <button class="linkbtn" type="button" data-sample="sample-anim.gif">애니메이션</button> ·
+      <button class="linkbtn" type="button" data-sample="sample-horse.gif">달리는 말</button>
       <span style="color:var(--muted)">(내려받지 않고 바로 선택됩니다)</span>
     </p>
 
@@ -180,12 +188,6 @@
       <div class="lcd"><img id="gifPreview" alt=""></div>
       <p class="hint" style="text-align:center">기기 화면과 같은 비율입니다 (잘리는 부분이 그대로 보입니다)</p>
     </div>
-
-    <label for="gifKind">파일 종류</label>
-    <select id="gifKind">
-      <option value="GIF_IMAGE">GIF 이미지</option>
-      <option value="GIF_MOVIE">GIF 동영상</option>
-    </select>
 
     <label for="gifName">이름 <span class="hint" style="font-weight:400">— 슬롯 목록에 표시됩니다</span></label>
     <input type="text" id="gifName" maxlength="24" placeholder="예: 고양이">
@@ -254,6 +256,20 @@
       기기의 RTC 는 백업 배터리로 유지됩니다. 시간이 어긋나 있으면
       <b>PC 시간으로 동기화</b> 를 누르면 됩니다.
     </div>
+
+    <label style="margin-top:26px;">부트로더</label>
+    <button class="action ghost" id="btnBoot" disabled>부트로더로 재시작</button>
+
+    <div class="progress" id="bootProgress">
+      <div class="bar"><i id="bootBar"></i></div>
+      <div class="status" id="bootStatus"></div>
+    </div>
+
+    <div class="note warn" style="margin-top:16px;">
+      기기가 재시작되면서 USB 드라이브로 잡힙니다. 여기에 <code>.uf2</code> 를 복사하면
+      펌웨어나 GIF 가 설치됩니다. 원래대로 돌아오려면 케이블을 다시 꽂거나
+      드라이브에 <code>.uf2</code> 를 복사하면 됩니다.
+    </div>
   </section>
 
 </div>
@@ -281,11 +297,22 @@ const CMD_COMMIT = 0x05;
 const CMD_STATUS = 0x06;
 const CMD_SLOT   = 0x07;
 const CMD_RTC    = 0x08;
+const CMD_SHOW   = 0x09;   // 프로토콜 v2
+const CMD_READ   = 0x0A;   // 프로토콜 v2
+const PROTO_SLOT_TOOLS = 2;
 const RTC_OP_GET = 0;
 const RTC_OP_SET = 1;
 
 const TARGET_FIRM = 0;
 const TARGET_SLOT = 1;
+
+// 부트로더 진입은 펌웨어에 이미 있는 VIA 채널을 그대로 쓴다. 위 프로토콜과
+// 리포트 첫 바이트가 달라(0xC0 vs 0x07) 서로 섞이지 않는다.
+//   via.h     : id_custom_set_value = 0x07, id_qmk_system = 9
+//   sys_port.c: id_qmk_system_dfu   = 1  -> resetToBoot()
+const VIA_SET_VALUE = 0x07;
+const VIA_CH_SYSTEM = 9;
+const VIA_SYS_DFU   = 1;
 
 const ERR_TEXT = {
   0x00: "정상", 0x01: "알 수 없는 명령", 0x02: "잘못된 순서",
@@ -544,13 +571,14 @@ async function writeToDrive(bytes, name, setStatus) {
 const ui = {};
 ["dot","connText","btnConnect","noSupport","oldFirmware",
  "tabGif","tabFw","panelGif","panelFw",
- "gifKind","gifFile","gifName","gifNameHint","gifHint","gifDim","gifPreviewWrap","gifPreview",
+ "gifFile","gifName","gifNameHint","gifHint","gifDim","gifPreviewWrap","gifPreview",
  "slotList","btnSlotRefresh","btnGifSend","btnGifDrive","btnGifDownload",
  "gifProgress","gifBar","gifStatus",
  "fwCurrent","fwSelect","fwMeta","fwNotes","btnFwSend","btnFwDrive","btnFwDownload",
  "fwProgress","fwBar","fwStatus",
  "tabSet","panelSet","rtcNow","rtcDiff","btnRtcRead","btnRtcSync","rtcManual","btnRtcSet",
- "rtcProgress","rtcBar","rtcStatus"].forEach(id => ui[id] = document.getElementById(id));
+ "rtcProgress","rtcBar","rtcStatus",
+ "btnBoot","bootProgress","bootBar","bootStatus"].forEach(id => ui[id] = document.getElementById(id));
 
 function setConn(html, cls) {
   ui.connText.innerHTML = html;
@@ -589,6 +617,8 @@ function refreshButtons() {
   ui.btnRtcSync.disabled = !ready;
   ui.btnRtcSet.disabled  = !ready;
   ui.btnRtcRead.disabled = !ready;
+  // 부트로더 진입은 VIA 명령이라 구형 펌웨어에서도 된다. 연결만 확인한다.
+  ui.btnBoot.disabled    = !dev.hid;
 }
 
 //--------------------------------------------------------------------
@@ -612,30 +642,35 @@ function renderSlots() {
   ui.slotList.innerHTML = "";
 
   for (let i = 0; i < slotCount; i++) {
-    const st = slotState[i];
-    const row = document.createElement("label");
+    const st  = slotState[i];
+    const row = document.createElement("div");
     row.className = "slot";
+
+    const pick = document.createElement("label");
+    pick.className = "pick";
 
     const radio = document.createElement("input");
     radio.type = "radio";
     radio.name = "slot";
     radio.value = String(i);
     radio.checked = (i === selectedSlot);
-    radio.onchange = () => { selectedSlot = i; renderSlots(); };
+    radio.onchange = () => {
+      selectedSlot = i;
+      renderSlots();
+      showSlotOnDevice(i);      // 기기 화면도 이 슬롯으로 옮긴다
+    };
 
     const name = document.createElement("span");
     name.className = "name";
     name.textContent = "SLOT " + (i + 1);
 
+    pick.append(radio, name);
+
     const desc = document.createElement("span");
     desc.className = "desc";
-    if (dev.info) {
-      desc.textContent = slotDesc(st);
-    } else {
-      desc.textContent = "연결하면 현재 상태를 보여줍니다";
-    }
-
-    row.append(radio, name, desc);
+    desc.textContent = dev.info ? slotDesc(st) : "연결하면 현재 상태를 보여줍니다";
+    pick.append(desc);
+    row.append(pick);
 
     if (i === selectedSlot && st && st.used) {
       const w = document.createElement("span");
@@ -643,9 +678,71 @@ function renderSlots() {
       w.textContent = "덮어씀";
       row.append(w);
     }
+
+    // 저장된 슬롯을 내려받는다. 프로토콜 v2 부터다.
+    if (st && st.used && dev.info && dev.info.proto >= PROTO_SLOT_TOOLS) {
+      const tools = document.createElement("div");
+      tools.className = "tools";
+
+      const dl = document.createElement("button");
+      dl.textContent = "다운로드";
+      dl.onclick = () => downloadSlot(i);
+
+      tools.append(dl);
+      row.append(tools);
+    }
+
     ui.slotList.append(row);
   }
 }
+
+// 기기 화면을 해당 슬롯으로 옮긴다. 구형 펌웨어면 조용히 넘어간다.
+async function showSlotOnDevice(slot) {
+  if (!dev.info || dev.info.proto < PROTO_SLOT_TOOLS) return;
+  try {
+    await command(CMD_SHOW, new Uint8Array([slot]), 2000);
+  } catch (e) { /* 화면 전환은 실패해도 전송에는 지장이 없다 */ }
+}
+
+// 슬롯에 저장된 GIF 를 리포트 한 개(23바이트)씩 읽어 온다.
+async function readSlotGif(slot, total, onProgress) {
+  const out = new Uint8Array(total);
+  let off = 0;
+
+  while (off < total) {
+    const req = new Uint8Array([slot, off & 0xFF, (off >> 8) & 0xFF,
+                                (off >> 16) & 0xFF, (off >>> 24) & 0xFF]);
+    const r = await command(CMD_READ, req, 3000);
+    if (r[2] !== 0) throw new Error("읽기 실패: " + (ERR_TEXT[r[2]] || r[2]));
+
+    const len = r[8];
+    if (len === 0) throw new Error("읽기 실패: 빈 응답");
+
+    out.set(r.slice(9, 9 + len), off);
+    off += len;
+
+    if (onProgress && (off % (23 * 40) < 23)) onProgress(off / total);
+  }
+  return out;
+}
+
+function slotFileName(st, slot) {
+  const base = (st && st.name) ? st.name : `slot${slot + 1}`;
+  return `${base}.gif`;
+}
+
+function downloadSlot(slot) {
+  const st = slotState[slot];
+  if (!st || !st.used) return;
+
+  guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
+    gifProg.set(0, "기기에서 읽는 중…");
+    const bytes = await readSlotGif(slot, st.size, r => gifProg.set(r, "기기에서 읽는 중…"));
+    download(bytes, slotFileName(st, slot));
+    gifProg.done(`${slotFileName(st, slot)} 를 내려받았습니다`);
+  });
+}
+
 
 async function readSlots() {
   if (!dev.info) { slotState = []; renderSlots(); return; }
@@ -690,13 +787,18 @@ function updateNameHint() {
     ui.gifNameHint.style.color = "";
   }
 }
-ui.gifName.oninput = updateNameHint;
+ui.gifName.oninput = () => {
+  nameEdited = ui.gifName.value.trim().length > 0;
+  updateNameHint();
+};
 
 //--------------------------------------------------------------------
 // 미리보기 · 예제 파일
 //--------------------------------------------------------------------
 let previewUrl = null;
 let pickedFile = null;      // File 또는 { name, bytes }
+let pickedMovie = false;    // 프레임이 2개 이상이면 동영상
+let nameEdited = false;     // 사용자가 이름을 직접 고쳤는지
 
 function setPreview(blob) {
   if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -729,28 +831,74 @@ document.querySelectorAll("[data-sample]").forEach(a => {
   };
 });
 
-function applyPicked(head, name, blob) {
-  // 이름을 아직 손대지 않았으면 파일명으로 채워 준다.
-  if (!ui.gifName.value.trim()) {
+function applyPicked(data, name, blob) {
+  // 직접 고친 이름은 그대로 두고, 그 외에는 새 파일 이름으로 바꾼다.
+  if (!nameEdited) {
     ui.gifName.value = truncUtf8(name.replace(/\.[^.]+$/, ""), SLOT_NAME_SIZE);
     updateNameHint();
   }
 
-  const size = readGifSize(head);
+  const size = readGifSize(data);
   if (!size) {
     ui.gifDim.textContent = `${name} — GIF 파일이 아닌 것 같습니다`;
     ui.gifDim.style.color = "var(--err)";
     setPreview(null);
   } else {
+    const frames = countGifFrames(data);
+    pickedMovie = frames > 1;
+
     const bytes = pickedFile.bytes ? pickedFile.bytes.length : pickedFile.size;
     const fit = size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT;
     ui.gifDim.textContent =
-      `${name} · ${(bytes / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` +
+      `${name} · ${pickedMovie ? `동영상 ${frames}프레임` : "이미지"}` +
+      ` · ${(bytes / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` +
       (fit ? "" : ` — LCD(${LCD_WIDTH} × ${LCD_HEIGHT}) 보다 커서 잘려 보입니다`);
     ui.gifDim.style.color = fit ? "var(--ok)" : "var(--warn)";
     setPreview(blob);
   }
   refreshButtons();
+}
+
+// 이미지/동영상 구분은 프레임 수로 정한다. 사람이 고를 이유가 없다.
+// 블록을 따라가며 이미지 서술자(0x2C) 개수를 센다.
+function countGifFrames(bytes) {
+  let p = 6;                                    // 시그니처(6)
+  if (bytes.length < 13) return 0;
+
+  const flags = bytes[10];                      // 논리 화면 서술자
+  p = 13;
+  if (flags & 0x80) p += 3 * (2 << (flags & 7)); // 전역 색상표
+
+  let frames = 0;
+  while (p < bytes.length) {
+    const block = bytes[p++];
+
+    if (block === 0x3B) break;                  // 트레일러
+
+    if (block === 0x21) {                       // 확장 블록
+      p++;                                      // 라벨
+      p = skipSubBlocks(bytes, p);
+      continue;
+    }
+
+    if (block === 0x2C) {                       // 이미지 서술자
+      frames++;
+      const lflags = bytes[p + 8];
+      p += 9;
+      if (lflags & 0x80) p += 3 * (2 << (lflags & 7)); // 지역 색상표
+      p++;                                      // LZW 최소 코드 크기
+      p = skipSubBlocks(bytes, p);
+      continue;
+    }
+
+    break;                                      // 알 수 없는 블록
+  }
+  return frames;
+}
+
+function skipSubBlocks(bytes, p) {
+  while (p < bytes.length && bytes[p] !== 0) p += bytes[p] + 1;
+  return p + 1;
 }
 
 // GIF 논리 화면 크기는 헤더 6..9 바이트에 리틀엔디언으로 들어 있다.
@@ -769,8 +917,8 @@ ui.gifFile.onchange = async () => {
   if (!f) { pickedFile = null; setPreview(null); refreshButtons(); return; }
 
   pickedFile = f;
-  const head = new Uint8Array(await f.slice(0, 10).arrayBuffer());
-  applyPicked(head, f.name, f);
+  // 프레임 수를 세려면 전체가 필요하다. 슬롯 상한이 2MB 라 부담되지 않는다.
+  applyPicked(new Uint8Array(await f.arrayBuffer()), f.name, f);
 };
 
 ui.btnConnect.onclick = async () => {
@@ -855,6 +1003,29 @@ ui.btnRtcSet.onclick = () => guard(rtcProg, [ui.btnRtcSync, ui.btnRtcSet], async
   rtcProg.set(0.5, "설정 중…");
   await writeRtc(d);
   rtcProg.done("입력한 시간으로 맞췄습니다");
+});
+
+//--------------------------------------------------------------------
+// 부트로더 진입
+//--------------------------------------------------------------------
+const bootProg = makeProgress(ui.bootBar, ui.bootStatus, ui.bootProgress);
+
+ui.btnBoot.onclick = () => guard(bootProg, [ui.btnBoot], async () => {
+  const buf = new Uint8Array(REPORT_SIZE);
+  buf[0] = VIA_SET_VALUE;
+  buf[1] = VIA_CH_SYSTEM;
+  buf[2] = VIA_SYS_DFU;
+  buf[3] = 1;
+
+  bootProg.set(0.5, "부트로더로 전환 중…");
+
+  // 명령을 받는 즉시 기기가 리셋되므로 응답을 기다리지 않는다.
+  // 리셋으로 전송이 끊겨 sendReport 가 실패하는 것도 정상이다.
+  try {
+    await sendReport(buf);
+  } catch (e) { /* 리셋으로 끊긴 것 */ }
+
+  bootProg.done("부트로더로 재시작했습니다. USB 드라이브를 확인하세요.");
 });
 
 //--------------------------------------------------------------------
@@ -961,26 +1132,29 @@ function truncUtf8(text, max) {
   return out;
 }
 
-function nameBytes() {
+function nameBytes(name) {
   const enc = new TextEncoder();
   const buf = new Uint8Array(SLOT_NAME_SIZE);
-  buf.set(enc.encode(truncUtf8(ui.gifName.value.trim(), SLOT_NAME_SIZE)));
+  buf.set(enc.encode(truncUtf8(name, SLOT_NAME_SIZE)));
   return buf;
 }
 
 async function buildGifPayload() {
-  const raw = await pickedBytes();
+  return makeSlotPayload(await pickedBytes(), ui.gifName.value.trim(), pickedMovie);
+}
+
+function makeSlotPayload(raw, name, isMovie) {
   const out = new Uint8Array(32 + raw.length);
   const dv  = new DataView(out.buffer);
 
   // [0..15] 이름
-  out.set(nameBytes(), 0);
+  out.set(nameBytes(name), 0);
   // [16..19] 크기 — 구버전 펌웨어도 이 위치를 읽으므로 옮기면 안 된다
   dv.setUint32(16, raw.length, true);
   // [20..23] 포맷 매직 — 이게 있어야 이름 필드를 신뢰한다
   for (let i = 0; i < 4; i++) out[20 + i] = SLOT_FMT_MAGIC.charCodeAt(i);
-  // [24] 종류
-  out[24] = (ui.gifKind.value === "GIF_MOVIE") ? 1 : 0;
+  // [24] 종류 — 프레임 수로 판별한 값
+  out[24] = isMovie ? 1 : 0;
 
   out.set(raw, 32);
   return out;
@@ -1008,6 +1182,7 @@ ui.btnGifSend.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.
   await transfer(TARGET_SLOT, slot, payload, (r, t) => gifProg.set(r, t));
   gifProg.done(`SLOT ${slot + 1} 저장 완료 (${(payload.length / 1024).toFixed(1)} KB)`);
   await readSlots();
+  await showSlotOnDevice(slot);   // 방금 넣은 GIF 를 기기 화면에 띄운다
 });
 
 ui.btnGifDownload.onclick = () => guard(gifProg, [ui.btnGifDownload], async () => {

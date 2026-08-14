@@ -119,6 +119,9 @@ static via_report_info_t     via_report_q_buf[128];
 static uint32_t              via_report_pre_time;
 static uint32_t              via_report_time = 20;
 __ALIGN_BEGIN static uint8_t via_hid_usb_report[32] __ALIGN_END;
+// 수신 버퍼와 따로 둔다. 같은 버퍼로 보내면 응답을 보내는 도중 들어온
+// 리포트가 그 내용을 덮어쓴다.
+__ALIGN_BEGIN static uint8_t via_hid_tx_report[32] __ALIGN_END;
 // 콜백이 true 를 반환하면 받은 리포트를 그대로 되돌려 보낸다(VIA 규약).
 // false 면 응답을 큐에 넣지 않는다. 대량 전송처럼 리포트마다 응답이 필요없는 경우에 쓴다.
 static bool (*via_hid_receive_func)(uint8_t *data, uint8_t length) = NULL;
@@ -1021,6 +1024,12 @@ static uint8_t USBD_HID_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum)
     via_report_pre_time = millis();
   }
   #endif
+
+  // 응답 여부와 상관없이 곧바로 다음 수신을 준비한다. 응답을 보낼 때만
+  // 준비하면, 응답이 없는 리포트(대량 전송의 DATA)를 하나 받은 뒤로는
+  // 호스트가 보내는 리포트를 영영 받지 못한다.
+  USBD_LL_PrepareReceive(pdev, HID_VIA_EP_OUT, via_hid_usb_report, sizeof(via_hid_usb_report));
+
   return (uint8_t)USBD_OK;
 }
 
@@ -1030,9 +1039,8 @@ uint8_t USBD_HID_SOF(USBD_HandleTypeDef *pdev)
 
   if (qbufferAvailable(&via_report_q) && (millis()-via_report_pre_time) >= via_report_time)
   {
-    qbufferRead(&via_report_q, (uint8_t *)via_hid_usb_report, 1);
-    USBD_LL_Transmit(pdev, HID_VIA_EP_OUT, via_hid_usb_report, sizeof(via_hid_usb_report));
-    USBD_LL_PrepareReceive(pdev, HID_VIA_EP_OUT, via_hid_usb_report, sizeof(via_hid_usb_report));
+    qbufferRead(&via_report_q, (uint8_t *)via_hid_tx_report, 1);
+    USBD_LL_Transmit(pdev, HID_VIA_EP_OUT, via_hid_tx_report, sizeof(via_hid_tx_report));
   }
 
   if (qbufferAvailable(&report_q) > 0)

@@ -310,6 +310,18 @@ bool gifSetKeycode(uint16_t keycode)
   return ret;
 }
 
+void gifReqSlot(uint8_t slot)
+{
+  if (slot >= SLOT_MAX_CH) return;
+
+  slot_run_req = slot;
+  eepromWriteByte(HW_EEPROM_SLOT_RUN, slot_run_req);
+
+  // 같은 슬롯이면 gifMain() 이 변경으로 보지 않는다. 방금 전송한 GIF 를
+  // 다시 읽게 하려면 현재 값을 무효로 만들어 준다.
+  slot_run = SLOT_MAX_CH;
+}
+
 void gifInit(void)
 {
   slot_run = SLOT_MAX_CH;

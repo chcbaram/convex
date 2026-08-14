@@ -32,7 +32,8 @@ extern "C" {
 #define FWUPDATE_DATA_SIZE        (FWUPDATE_REPORT_SIZE - FWUPDATE_DATA_OFFSET)
 
 // 프로토콜 버전. 웹페이지가 INFO 응답으로 지원 여부를 판별한다.
-#define FWUPDATE_PROTO_VER        1
+// 2 : SHOW(슬롯 화면 전환) / READ(슬롯 내용 읽기) 추가
+#define FWUPDATE_PROTO_VER        2
 
 
 typedef enum
@@ -45,6 +46,8 @@ typedef enum
   FWUPDATE_CMD_STATUS = 0x06,   // 진행 상태 조회
   FWUPDATE_CMD_SLOT   = 0x07,   // 슬롯 하나의 현재 상태 조회
   FWUPDATE_CMD_RTC    = 0x08,   // RTC 읽기/쓰기
+  FWUPDATE_CMD_SHOW   = 0x09,   // 지정한 슬롯을 기기 화면에 띄운다
+  FWUPDATE_CMD_READ   = 0x0A,   // 슬롯에 저장된 GIF 를 읽어 온다
 } FwUpdateCmd_t;
 
 typedef enum
@@ -101,6 +104,16 @@ typedef enum
 #define FWUPDATE_SLOT_F_USED      (1<<0)
 #define FWUPDATE_SLOT_F_MOVIE     (1<<1)
 #define FWUPDATE_SLOT_F_NAMED     (1<<2)
+
+// SHOW 요청 : [2] 슬롯 번호. 슬롯 앱으로 전환하고 그 슬롯을 다시 읽어 띄운다.
+//             방금 전송한 GIF 를 바로 확인하는 데도 쓴다.
+
+// READ 요청 : [2] 슬롯 번호, [3..6] 오프셋 u32 (헤더 32바이트를 뺀 GIF 기준)
+// READ 응답 : [3] 슬롯, [4..7] 오프셋, [8] 이번에 실은 바이트 수, [9..31] 데이터
+//   호스트가 이어붙여 원본 GIF 를 그대로 되살린다. 슬롯 이름만 바꾸는 것도
+//   NOR 플래시라 헤더만 고쳐 쓸 수 없어, 읽어서 다시 보내는 식으로 한다.
+#define FWUPDATE_READ_DATA_OFS    9
+#define FWUPDATE_READ_DATA_SIZE   (FWUPDATE_REPORT_SIZE - FWUPDATE_READ_DATA_OFS)
 
 // RTC 요청 : [2] 동작(0=읽기, 1=쓰기), 쓰기면 [3..8] 에 연월일시분초
 // RTC 응답 : [3..9] 연, 월, 일, 요일(0=일), 시, 분, 초
