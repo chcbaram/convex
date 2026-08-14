@@ -102,8 +102,18 @@
              font: inherit; font-weight: 600; font-size: 13px; padding: 0 2px; }
   .linkbtn:hover { text-decoration: underline; }
 
+  .rtc { font-size: 26px; font-weight: 600; letter-spacing: .5px; text-align: center;
+         padding: 16px; border: 1px solid var(--line); border-radius: 10px;
+         background: #fbfcfd; font-variant-numeric: tabular-nums; }
+  input[type=datetime-local] { width: 100%; padding: 11px; border: 1px solid #ced4da;
+                               border-radius: 8px; font-size: 14px; font-family: inherit; }
+
   .fw-meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
   .fw-meta span { margin-right: 14px; }
+  .fw-notes { margin: 12px 0 0; padding: 12px 16px 12px 32px; font-size: 13.5px;
+              background: #fbfcfd; border: 1px solid var(--line); border-radius: 10px; }
+  .fw-notes li { margin: 3px 0; }
+  .fw-notes li::marker { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -142,6 +152,7 @@
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tabGif" aria-selected="true" aria-controls="panelGif">GIF 슬롯</button>
     <button class="tab" role="tab" id="tabFw"  aria-selected="false" aria-controls="panelFw">펌웨어</button>
+    <button class="tab" role="tab" id="tabSet" aria-selected="false" aria-controls="panelSet">설정</button>
   </div>
 
   <!-- ================= GIF 슬롯 ================= -->
@@ -191,6 +202,7 @@
     <label for="fwSelect">펌웨어 버전</label>
     <select id="fwSelect"><option>불러오는 중…</option></select>
     <div class="fw-meta" id="fwMeta"></div>
+    <ul class="fw-notes" id="fwNotes" hidden></ul>
 
     <button class="action" id="btnFwSend" disabled>기기에 바로 전송</button>
     <div class="row">
@@ -207,6 +219,29 @@
       전송이 끝나면 기기가 스스로 재시작하면서 펌웨어를 적용합니다.
       적용 중에는 <b>케이블을 뽑지 마세요.</b>
       전송에 실패해도 기존 펌웨어는 그대로 남아 있어 다시 시도하면 됩니다.
+    </div>
+  </section>
+
+  <!-- ================= 설정 ================= -->
+  <section class="panel" id="panelSet" role="tabpanel" aria-labelledby="tabSet" hidden>
+    <label>기기 시간 <button class="linkbtn" id="btnRtcRead" type="button">새로고침</button></label>
+    <div class="rtc" id="rtcNow">연결하면 현재 시간을 보여줍니다</div>
+    <p class="hint" id="rtcDiff"></p>
+
+    <button class="action" id="btnRtcSync" disabled>PC 시간으로 동기화</button>
+
+    <label for="rtcManual">직접 입력</label>
+    <input type="datetime-local" id="rtcManual" step="1">
+    <button class="action ghost" id="btnRtcSet" disabled>입력한 시간으로 설정</button>
+
+    <div class="progress" id="rtcProgress">
+      <div class="bar"><i id="rtcBar"></i></div>
+      <div class="status" id="rtcStatus"></div>
+    </div>
+
+    <div class="note info" style="margin-top:22px;">
+      기기의 RTC 는 백업 배터리로 유지됩니다. 시간이 어긋나 있으면
+      <b>PC 시간으로 동기화</b> 를 누르면 됩니다.
     </div>
   </section>
 
@@ -234,6 +269,9 @@ const CMD_END    = 0x04;
 const CMD_COMMIT = 0x05;
 const CMD_STATUS = 0x06;
 const CMD_SLOT   = 0x07;
+const CMD_RTC    = 0x08;
+const RTC_OP_GET = 0;
+const RTC_OP_SET = 1;
 
 const TARGET_FIRM = 0;
 const TARGET_SLOT = 1;
@@ -355,6 +393,7 @@ async function connect() {
   }
   refreshButtons();
   await readSlots();
+  await readRtc();
 }
 
 function parseInfo(buf) {
@@ -496,8 +535,10 @@ const ui = {};
  "gifKind","gifFile","gifName","gifNameHint","gifHint","gifDim","gifPreviewWrap","gifPreview",
  "slotList","btnSlotRefresh","btnGifSend","btnGifDrive","btnGifDownload",
  "gifProgress","gifBar","gifStatus",
- "fwSelect","fwMeta","btnFwSend","btnFwDrive","btnFwDownload",
- "fwProgress","fwBar","fwStatus"].forEach(id => ui[id] = document.getElementById(id));
+ "fwSelect","fwMeta","fwNotes","btnFwSend","btnFwDrive","btnFwDownload",
+ "fwProgress","fwBar","fwStatus",
+ "tabSet","panelSet","rtcNow","rtcDiff","btnRtcRead","btnRtcSync","rtcManual","btnRtcSet",
+ "rtcProgress","rtcBar","rtcStatus"].forEach(id => ui[id] = document.getElementById(id));
 
 function setConn(html, cls) {
   ui.connText.innerHTML = html;
@@ -515,20 +556,27 @@ function makeProgress(barEl, statusEl, wrapEl) {
 const gifProg = makeProgress(ui.gifBar, ui.gifStatus, ui.gifProgress);
 const fwProg  = makeProgress(ui.fwBar,  ui.fwStatus,  ui.fwProgress);
 
+const TABS = { gif: [ui.tabGif, ui.panelGif], fw: [ui.tabFw, ui.panelFw], set: [ui.tabSet, ui.panelSet] };
+
 function selectTab(which) {
-  const isGif = which === "gif";
-  ui.tabGif.setAttribute("aria-selected", String(isGif));
-  ui.tabFw.setAttribute("aria-selected", String(!isGif));
-  ui.panelGif.hidden = !isGif;
-  ui.panelFw.hidden  = isGif;
+  for (const [key, [tab, panel]] of Object.entries(TABS)) {
+    const on = (key === which);
+    tab.setAttribute("aria-selected", String(on));
+    panel.hidden = !on;
+  }
+  if (which === "set" && dev.info) readRtc();
 }
 ui.tabGif.onclick = () => selectTab("gif");
 ui.tabFw.onclick  = () => selectTab("fw");
+ui.tabSet.onclick = () => selectTab("set");
 
 function refreshButtons() {
   const ready = !!(dev.hid && dev.info);
   ui.btnGifSend.disabled = !ready || !pickedFile;
   ui.btnFwSend.disabled  = !ready || !currentFirmware();
+  ui.btnRtcSync.disabled = !ready;
+  ui.btnRtcSet.disabled  = !ready;
+  ui.btnRtcRead.disabled = !ready;
 }
 
 //--------------------------------------------------------------------
@@ -719,6 +767,85 @@ ui.btnConnect.onclick = async () => {
 };
 
 //--------------------------------------------------------------------
+// RTC
+//--------------------------------------------------------------------
+const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+const rtcProg = makeProgress(ui.rtcBar, ui.rtcStatus, ui.rtcProgress);
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function showRtc(t) {
+  ui.rtcNow.textContent =
+    `20${pad(t.year)}-${pad(t.month)}-${pad(t.day)} (${WEEK[t.week] || "?"}) ` +
+    `${pad(t.hour)}:${pad(t.min)}:${pad(t.sec)}`;
+
+  // PC 시간과 얼마나 차이 나는지 알려 준다.
+  const devDate = new Date(2000 + t.year, t.month - 1, t.day, t.hour, t.min, t.sec);
+  const diff = Math.round((Date.now() - devDate.getTime()) / 1000);
+  const abs = Math.abs(diff);
+
+  if (abs <= 2) {
+    ui.rtcDiff.textContent = "PC 시간과 일치합니다";
+    ui.rtcDiff.style.color = "var(--ok)";
+  } else {
+    const unit = abs < 60 ? `${abs}초` : abs < 3600 ? `${Math.round(abs / 60)}분`
+               : abs < 86400 ? `${Math.round(abs / 3600)}시간` : `${Math.round(abs / 86400)}일`;
+    ui.rtcDiff.textContent = `PC 시간보다 ${unit} ${diff > 0 ? "느립니다" : "빠릅니다"}`;
+    ui.rtcDiff.style.color = "var(--warn)";
+  }
+}
+
+function parseRtc(r) {
+  return { year: r[3], month: r[4], day: r[5], week: r[6], hour: r[7], min: r[8], sec: r[9] };
+}
+
+async function readRtc() {
+  if (!dev.info) return;
+  try {
+    const r = await command(CMD_RTC, new Uint8Array([RTC_OP_GET]), 3000);
+    if (r[2] !== 0) throw new Error(ERR_TEXT[r[2]] || r[2]);
+    const t = parseRtc(r);
+    showRtc(t);
+
+    // 직접 입력란도 현재 값으로 채워 둔다.
+    ui.rtcManual.value =
+      `20${pad(t.year)}-${pad(t.month)}-${pad(t.day)}T${pad(t.hour)}:${pad(t.min)}:${pad(t.sec)}`;
+  } catch (e) {
+    ui.rtcNow.textContent = "시간을 읽지 못했습니다";
+    ui.rtcDiff.textContent = e.message || "";
+    ui.rtcDiff.style.color = "var(--err)";
+  }
+}
+
+async function writeRtc(d) {
+  const payload = new Uint8Array([
+    RTC_OP_SET,
+    d.getFullYear() % 100, d.getMonth() + 1, d.getDate(),
+    d.getHours(), d.getMinutes(), d.getSeconds(),
+  ]);
+  const r = await command(CMD_RTC, payload, 3000);
+  if (r[2] !== 0) throw new Error(ERR_TEXT[r[2]] || r[2]);
+  showRtc(parseRtc(r));
+}
+
+ui.btnRtcRead.onclick = () => readRtc();
+
+ui.btnRtcSync.onclick = () => guard(rtcProg, [ui.btnRtcSync, ui.btnRtcSet], async () => {
+  rtcProg.set(0.5, "동기화 중…");
+  await writeRtc(new Date());
+  rtcProg.done("PC 시간으로 맞췄습니다");
+});
+
+ui.btnRtcSet.onclick = () => guard(rtcProg, [ui.btnRtcSync, ui.btnRtcSet], async () => {
+  if (!ui.rtcManual.value) throw new Error("시간을 입력해 주세요");
+  const d = new Date(ui.rtcManual.value);
+  if (isNaN(d.getTime())) throw new Error("시간 형식이 올바르지 않습니다");
+  rtcProg.set(0.5, "설정 중…");
+  await writeRtc(d);
+  rtcProg.done("입력한 시간으로 맞췄습니다");
+});
+
+//--------------------------------------------------------------------
 // 펌웨어 목록
 //--------------------------------------------------------------------
 let manifest = { firmwares: [] };
@@ -729,6 +856,18 @@ function currentFirmware() {
 
 function showFwMeta() {
   const f = currentFirmware();
+
+  const notes = f && (f.notes || (f.note ? [f.note] : []));
+  ui.fwNotes.innerHTML = "";
+  ui.fwNotes.hidden = !(notes && notes.length);
+  if (notes) {
+    for (const n of notes) {
+      const li = document.createElement("li");
+      li.textContent = n;
+      ui.fwNotes.append(li);
+    }
+  }
+
   if (!f) { ui.fwMeta.textContent = ""; return; }
   const installed = dev.info && dev.info.version === f.version;
   ui.fwMeta.innerHTML =
@@ -747,7 +886,7 @@ async function loadManifest() {
     ui.fwSelect.innerHTML = "";
     manifest.firmwares.forEach(f => {
       const o = document.createElement("option");
-      o.textContent = `${f.board} ${f.version}` + (f.note ? ` — ${f.note}` : "");
+      o.textContent = `${f.board} ${f.version}`;
       ui.fwSelect.appendChild(o);
     });
     showFwMeta();
@@ -894,6 +1033,8 @@ function handleDisconnect(e) {
     setConn("연결되지 않음", "");
     slotState = [];
     renderSlots();
+    ui.rtcNow.textContent = "연결하면 현재 시간을 보여줍니다";
+    ui.rtcDiff.textContent = "";
     refreshButtons();
   }
 }

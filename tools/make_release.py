@@ -5,8 +5,10 @@
 선택한 항목의 .bin 을 그대로 장치에 전송한다.
 
 사용법:
-    python3 tools/make_release.py <빌드폴더>
-    예) python3 tools/make_release.py firmware/convex-qmk/build
+    python3 tools/make_release.py <빌드폴더> [--note "내용"] ...
+
+    --note 를 주지 않으면 manifest 에 이미 있는 릴리즈 노트를 그대로 유지한다.
+    예) python3 tools/make_release.py firmware/convex-qmk/build --note "슬롯 이름 저장"
 """
 
 import json
@@ -48,10 +50,19 @@ def grep_define(path: Path, name: str) -> str:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
+    args = sys.argv[1:]
+    notes = []
+    while "--note" in args:
+        i = args.index("--note")
+        if i + 1 >= len(args):
+            raise SystemExit("--note 뒤에 내용이 필요하다")
+        notes.append(args[i + 1])
+        del args[i:i + 2]
+
+    if len(args) != 1:
         raise SystemExit(__doc__)
 
-    build_dir = Path(sys.argv[1]).resolve()
+    build_dir = Path(args[0]).resolve()
     version   = grep_define(HW_DEF, "_DEF_FIRMWATRE_VERSION")
     board     = grep_define(KBD_CONFIG, "KBD_NAME")
 
@@ -79,13 +90,19 @@ def main() -> None:
         "uf2":     uf2_name if uf2_src.exists() else None,
         "size":    len(data),
         "crc":     "0x%04X" % crc16(data),
-        "note":    "",
+        "notes":   notes,
     }
 
     manifest = {"board": board, "firmwares": []}
     if MANIFEST.exists():
         manifest = json.loads(MANIFEST.read_text())
         manifest.setdefault("firmwares", [])
+
+    # --note 를 주지 않았으면 기존 노트를 유지한다.
+    if not notes:
+        prev = next((f for f in manifest["firmwares"] if f.get("version") == version), None)
+        if prev:
+            entry["notes"] = prev.get("notes") or ([prev["note"]] if prev.get("note") else [])
 
     # 같은 버전이 있으면 교체하고, 없으면 맨 앞에 넣는다 (최신이 위).
     others = [f for f in manifest["firmwares"] if f.get("version") != version]
@@ -99,6 +116,7 @@ def main() -> None:
     print("version  : %s" % version)
     print("bin      : %s (%d B)" % (bin_name, entry["size"]))
     print("crc      : %s" % entry["crc"])
+    print("notes    : %d" % len(entry["notes"]))
     print("firmwares: %d" % len(manifest["firmwares"]))
 
 

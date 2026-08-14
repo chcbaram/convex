@@ -44,6 +44,7 @@ typedef enum
   FWUPDATE_CMD_COMMIT = 0x05,   // (FIRM) 업데이트 모드로 리셋
   FWUPDATE_CMD_STATUS = 0x06,   // 진행 상태 조회
   FWUPDATE_CMD_SLOT   = 0x07,   // 슬롯 하나의 현재 상태 조회
+  FWUPDATE_CMD_RTC    = 0x08,   // RTC 읽기/쓰기
 } FwUpdateCmd_t;
 
 typedef enum
@@ -100,6 +101,12 @@ typedef enum
 #define FWUPDATE_SLOT_F_USED      (1<<0)
 #define FWUPDATE_SLOT_F_MOVIE     (1<<1)
 #define FWUPDATE_SLOT_F_NAMED     (1<<2)
+
+// RTC 요청 : [2] 동작(0=읽기, 1=쓰기), 쓰기면 [3..8] 에 연월일시분초
+// RTC 응답 : [3..9] 연, 월, 일, 요일(0=일), 시, 분, 초
+//   연도는 2000 년 기준 2자리다. 요일은 장치가 날짜에서 계산하므로 보내지 않는다.
+#define FWUPDATE_RTC_OP_GET       0
+#define FWUPDATE_RTC_OP_SET       1
 
 
 // USB(ISR) 에서 호출된다. 리포트를 큐에 넣기만 하고 즉시 반환한다.

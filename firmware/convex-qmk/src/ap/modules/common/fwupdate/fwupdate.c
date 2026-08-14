@@ -453,6 +453,56 @@ void fwupdate_cmd_slot(uint8_t *p_data)
   fwupdate_send_resp(FWUPDATE_CMD_SLOT, FWUPDATE_OK, buf, sizeof(buf));
 }
 
+void fwupdate_cmd_rtc(uint8_t *p_data)
+{
+  rtc_time_t rtc_time;
+  rtc_date_t rtc_date;
+  uint8_t    buf[7];
+  uint8_t    err = FWUPDATE_OK;
+
+
+  if (p_data[2] == FWUPDATE_RTC_OP_SET)
+  {
+    rtc_date.year   = p_data[3];
+    rtc_date.month  = p_data[4];
+    rtc_date.day    = p_data[5];
+    rtc_date.week   = 0;          // 날짜에서 계산되므로 값은 의미가 없다
+    rtc_time.hours  = p_data[6];
+    rtc_time.minutes= p_data[7];
+    rtc_time.seconds= p_data[8];
+
+    if (rtc_date.month < 1 || rtc_date.month > 12 ||
+        rtc_date.day   < 1 || rtc_date.day   > 31 ||
+        rtc_time.hours > 23 || rtc_time.minutes > 59 || rtc_time.seconds > 59)
+    {
+      fwupdate_send_resp(FWUPDATE_CMD_RTC, FWUPDATE_ERR_TARGET, NULL, 0);
+      return;
+    }
+
+    if (rtcSetDate(&rtc_date) != true || rtcSetTime(&rtc_time) != true)
+    {
+      err = FWUPDATE_ERR_WRITE;
+    }
+  }
+
+  // 읽기든 쓰기든 현재 값을 되돌려 준다. 쓰기 직후 확인에 쓸 수 있다.
+  if (rtcGetTime(&rtc_time) != true || rtcGetDate(&rtc_date) != true)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_RTC, FWUPDATE_ERR_READ, NULL, 0);
+    return;
+  }
+
+  buf[0] = rtc_date.year;
+  buf[1] = rtc_date.month;
+  buf[2] = rtc_date.day;
+  buf[3] = rtc_date.week;
+  buf[4] = rtc_time.hours;
+  buf[5] = rtc_time.minutes;
+  buf[6] = rtc_time.seconds;
+
+  fwupdate_send_resp(FWUPDATE_CMD_RTC, err, buf, sizeof(buf));
+}
+
 bool fwupdate_erase(uint32_t addr, uint32_t size)
 {
   uint32_t sector_s;
