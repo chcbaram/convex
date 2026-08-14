@@ -81,6 +81,26 @@
   .note ol, .note ul { margin: 8px 0 0; padding-left: 20px; }
   .note code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
 
+  /* 미리보기 : 기기 LCD 와 동일한 크기/배경/정렬 */
+  .preview { margin-top: 14px; }
+  .lcd { width: 284px; height: 76px; margin: 0 auto; background: #000;
+         border-radius: 6px; overflow: hidden; display: flex;
+         align-items: center; justify-content: center; max-width: 100%; }
+  .lcd img { display: block; }
+
+  /* 슬롯 목록 */
+  .slots { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .slot { display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+          border-top: 1px solid var(--line); font-size: 14px; cursor: pointer; }
+  .slot:first-child { border-top: none; }
+  .slot:hover { background: #f8f9fa; }
+  .slot input { margin: 0; flex: none; }
+  .slot .name { font-weight: 600; width: 66px; flex: none; }
+  .slot .desc { color: var(--muted); flex: 1; }
+  .slot .warn { color: var(--warn); font-weight: 600; }
+  .linkbtn { border: none; background: none; color: var(--accent); cursor: pointer;
+             font: inherit; font-weight: 600; font-size: 13px; padding: 0 0 0 8px; }
+
   .fw-meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
   .fw-meta span { margin-right: 14px; }
 </style>
@@ -125,13 +145,19 @@
 
   <!-- ================= GIF 슬롯 ================= -->
   <section class="panel" id="panelGif" role="tabpanel" aria-labelledby="tabGif">
-    <label for="gifSlot">슬롯</label>
-    <select id="gifSlot">
-      <option value="0">SLOT 1</option>
-      <option value="1">SLOT 2</option>
-      <option value="2">SLOT 3</option>
-      <option value="3">SLOT 4</option>
-    </select>
+    <label for="gifFile">GIF 파일</label>
+    <input type="file" id="gifFile" accept=".gif">
+    <p class="hint" id="gifHint">LCD 해상도는 <b>284 × 76</b> 입니다. 슬롯당 최대 약 2MB.</p>
+    <p class="hint" id="gifDim"></p>
+    <p class="hint">예제 —
+      <a href="#" data-sample="sample-image.gif">이미지</a> ·
+      <a href="#" data-sample="sample-anim.gif">애니메이션</a>
+    </p>
+
+    <div class="preview" id="gifPreviewWrap" hidden>
+      <div class="lcd"><img id="gifPreview" alt=""></div>
+      <p class="hint" style="text-align:center">기기 화면과 같은 비율입니다 (잘리는 부분이 그대로 보입니다)</p>
+    </div>
 
     <label for="gifKind">파일 종류</label>
     <select id="gifKind">
@@ -139,10 +165,8 @@
       <option value="GIF_MOVIE">GIF 동영상</option>
     </select>
 
-    <label for="gifFile">GIF 파일</label>
-    <input type="file" id="gifFile" accept=".gif">
-    <p class="hint" id="gifHint">LCD 해상도는 <b>284 × 76</b> 입니다. 슬롯당 최대 약 2MB.</p>
-    <p class="hint" id="gifDim"></p>
+    <label>넣을 슬롯 <button class="linkbtn" id="btnSlotRefresh" type="button">새로고침</button></label>
+    <div class="slots" id="slotList"></div>
 
     <button class="action" id="btnGifSend" disabled>기기에 바로 전송</button>
     <div class="row">
@@ -203,6 +227,7 @@ const CMD_DATA   = 0x03;
 const CMD_END    = 0x04;
 const CMD_COMMIT = 0x05;
 const CMD_STATUS = 0x06;
+const CMD_SLOT   = 0x07;
 
 const TARGET_FIRM = 0;
 const TARGET_SLOT = 1;
@@ -221,6 +246,7 @@ const SLOT_FAMILY_BASE = 0xFFFF0010;
 const FIRM_FAMILY      = 0xFFFF0002;
 const MANIFEST_URL     = "firmware/release/manifest.json";
 const RELEASE_DIR      = "firmware/release/";
+const SAMPLE_DIR       = "firmware/release/samples/";
 
 //--------------------------------------------------------------------
 // CRC-16 (poly 0x8005, MSB first, init 0) — 펌웨어 utilCalcCRC() 와 동일
@@ -317,6 +343,7 @@ async function connect() {
     setConn("연결됨 — 웹 업데이트 미지원 펌웨어", "bad");
   }
   refreshButtons();
+  await readSlots();
 }
 
 function parseInfo(buf) {
@@ -353,6 +380,7 @@ async function transfer(target, slot, data, onProgress) {
   // 장치쪽 수신 큐(128개)를 넘지 않는 선에서 여러 개를 겹쳐 보낸다.
   const WINDOW = 16;
   let pending = [];
+  let lastTick = 0;
 
   for (let off = 0; off < total; off += DATA_SIZE) {
     const len = Math.min(DATA_SIZE, total - off);
@@ -370,7 +398,13 @@ async function transfer(target, slot, data, onProgress) {
     if (pending.length >= WINDOW) {
       await Promise.all(pending);
       pending = [];
-      onProgress(off / total, `전송 중… ${Math.round(off / 1024)} / ${Math.round(total / 1024)} KB`);
+
+      // DOM 갱신은 100ms 마다로 제한한다. 매번 갱신하면 초당 60회가 넘는다.
+      const now = performance.now();
+      if (now - lastTick >= 100) {
+        lastTick = now;
+        onProgress(off / total, `전송 중… ${Math.round(off / 1024)} / ${Math.round(total / 1024)} KB`);
+      }
     }
   }
   await Promise.all(pending);
@@ -448,7 +482,8 @@ async function writeToDrive(bytes, name, setStatus) {
 const ui = {};
 ["dot","connText","btnConnect","noSupport","oldFirmware",
  "tabGif","tabFw","panelGif","panelFw",
- "gifSlot","gifKind","gifFile","gifHint","gifDim","btnGifSend","btnGifDrive","btnGifDownload",
+ "gifKind","gifFile","gifHint","gifDim","gifPreviewWrap","gifPreview",
+ "slotList","btnSlotRefresh","btnGifSend","btnGifDrive","btnGifDownload",
  "gifProgress","gifBar","gifStatus",
  "fwSelect","fwMeta","btnFwSend","btnFwDrive","btnFwDownload",
  "fwProgress","fwBar","fwStatus"].forEach(id => ui[id] = document.getElementById(id));
@@ -481,8 +516,144 @@ ui.tabFw.onclick  = () => selectTab("fw");
 
 function refreshButtons() {
   const ready = !!(dev.hid && dev.info);
-  ui.btnGifSend.disabled = !ready || !ui.gifFile.files[0];
+  ui.btnGifSend.disabled = !ready || !pickedFile;
   ui.btnFwSend.disabled  = !ready || !currentFirmware();
+}
+
+//--------------------------------------------------------------------
+// 슬롯 목록
+//--------------------------------------------------------------------
+let slotCount = 4;
+let slotState = [];          // { used, size, w, h, kind } | null
+let selectedSlot = 0;
+
+function slotDesc(st) {
+  if (!st)        return { text: "상태를 읽지 못했습니다", cls: "" };
+  if (!st.used)   return { text: "비어 있음", cls: "" };
+  const dim = (st.w && st.h) ? `${st.w} × ${st.h}` : "크기 불명";
+  return { text: `${st.kind || "GIF"} · ${dim} · ${(st.size / 1024).toFixed(1)} KB`, cls: "" };
+}
+
+function renderSlots() {
+  ui.slotList.innerHTML = "";
+
+  for (let i = 0; i < slotCount; i++) {
+    const st = slotState[i];
+    const row = document.createElement("label");
+    row.className = "slot";
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "slot";
+    radio.value = String(i);
+    radio.checked = (i === selectedSlot);
+    radio.onchange = () => { selectedSlot = i; renderSlots(); };
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = "SLOT " + (i + 1);
+
+    const desc = document.createElement("span");
+    desc.className = "desc";
+    if (dev.info) {
+      desc.textContent = slotDesc(st).text;
+    } else {
+      desc.textContent = "연결하면 현재 상태를 보여줍니다";
+    }
+
+    row.append(radio, name, desc);
+
+    if (i === selectedSlot && st && st.used) {
+      const w = document.createElement("span");
+      w.className = "warn";
+      w.textContent = "덮어씀";
+      row.append(w);
+    }
+    ui.slotList.append(row);
+  }
+}
+
+async function readSlots() {
+  if (!dev.info) { slotState = []; renderSlots(); return; }
+
+  slotCount = dev.info.slotMax || 4;
+  const next = [];
+  for (let i = 0; i < slotCount; i++) {
+    try {
+      const r = await command(CMD_SLOT, new Uint8Array([i]), 3000);
+      if (r[2] !== 0) { next.push(null); continue; }
+      const dv = new DataView(r.buffer, r.byteOffset);
+      const used = r[4] === 1;
+      next.push({
+        used,
+        size: dv.getUint32(5, true),
+        w: dv.getUint16(9, true),
+        h: dv.getUint16(11, true),
+        kind: used ? new TextDecoder().decode(r.slice(13, 29)).replace(/\0.*$/, "") : "",
+      });
+    } catch (e) {
+      next.push(null);
+    }
+  }
+  slotState = next;
+  renderSlots();
+}
+
+ui.btnSlotRefresh.onclick = () => readSlots();
+
+//--------------------------------------------------------------------
+// 미리보기 · 예제 파일
+//--------------------------------------------------------------------
+let previewUrl = null;
+let pickedFile = null;      // File 또는 { name, bytes }
+
+function setPreview(blob) {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = blob ? URL.createObjectURL(blob) : null;
+  ui.gifPreview.src = previewUrl || "";
+  ui.gifPreviewWrap.hidden = !previewUrl;
+}
+
+async function pickedBytes() {
+  if (!pickedFile) throw new Error("GIF 파일을 선택해 주세요");
+  if (pickedFile.bytes) return pickedFile.bytes;
+  return new Uint8Array(await pickedFile.arrayBuffer());
+}
+
+document.querySelectorAll("[data-sample]").forEach(a => {
+  a.onclick = async (e) => {
+    e.preventDefault();
+    const name = a.dataset.sample;
+    try {
+      const res = await fetch(SAMPLE_DIR + name, { cache: "no-store" });
+      if (!res.ok) throw new Error(res.status);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      pickedFile = { name, bytes };
+      ui.gifFile.value = "";
+      applyPicked(bytes, name, new Blob([bytes], { type: "image/gif" }));
+    } catch (err) {
+      ui.gifDim.textContent = "예제 파일을 불러오지 못했습니다";
+      ui.gifDim.style.color = "var(--err)";
+    }
+  };
+});
+
+function applyPicked(head, name, blob) {
+  const size = readGifSize(head);
+  if (!size) {
+    ui.gifDim.textContent = `${name} — GIF 파일이 아닌 것 같습니다`;
+    ui.gifDim.style.color = "var(--err)";
+    setPreview(null);
+  } else {
+    const bytes = pickedFile.bytes ? pickedFile.bytes.length : pickedFile.size;
+    const fit = size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT;
+    ui.gifDim.textContent =
+      `${name} · ${(bytes / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` +
+      (fit ? "" : ` — LCD(${LCD_WIDTH} × ${LCD_HEIGHT}) 보다 커서 잘려 보입니다`);
+    ui.gifDim.style.color = fit ? "var(--ok)" : "var(--warn)";
+    setPreview(blob);
+  }
+  refreshButtons();
 }
 
 // GIF 논리 화면 크기는 헤더 6..9 바이트에 리틀엔디언으로 들어 있다.
@@ -498,22 +669,11 @@ ui.gifFile.onchange = async () => {
   ui.gifDim.textContent = "";
   ui.gifDim.style.color = "";
 
-  if (!f) { refreshButtons(); return; }
+  if (!f) { pickedFile = null; setPreview(null); refreshButtons(); return; }
 
+  pickedFile = f;
   const head = new Uint8Array(await f.slice(0, 10).arrayBuffer());
-  const size = readGifSize(head);
-
-  if (!size) {
-    ui.gifDim.textContent = `${f.name} · ${(f.size / 1024).toFixed(1)} KB — GIF 파일이 아닌 것 같습니다`;
-    ui.gifDim.style.color = "var(--err)";
-  } else {
-    const fit = size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT;
-    ui.gifDim.textContent =
-      `${f.name} · ${(f.size / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` +
-      (fit ? "" : ` — LCD(${LCD_WIDTH} × ${LCD_HEIGHT}) 보다 커서 잘려 보일 수 있습니다`);
-    ui.gifDim.style.color = fit ? "var(--ok)" : "var(--warn)";
-  }
-  refreshButtons();
+  applyPicked(head, f.name, f);
 };
 
 ui.btnConnect.onclick = async () => {
@@ -577,8 +737,7 @@ async function fetchFirmwareBin(f) {
 // GIF 데이터 구성 : 32바이트 헤더(매직 16 + 크기 4 + 예약) + 원본
 //--------------------------------------------------------------------
 async function buildGifPayload() {
-  const file = ui.gifFile.files[0];
-  const raw = new Uint8Array(await file.arrayBuffer());
+  const raw = await pickedBytes();
 
   const out = new Uint8Array(32 + raw.length);
   const magic = ui.gifKind.value;
@@ -606,25 +765,24 @@ async function guard(prog, btns, fn) {
 
 ui.btnGifSend.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
   const payload = await buildGifPayload();
-  const slot = parseInt(ui.gifSlot.value, 10);
+  const slot = selectedSlot;
   await transfer(TARGET_SLOT, slot, payload, (r, t) => gifProg.set(r, t));
   gifProg.done(`SLOT ${slot + 1} 저장 완료 (${(payload.length / 1024).toFixed(1)} KB)`);
+  await readSlots();
 });
 
 ui.btnGifDownload.onclick = () => guard(gifProg, [ui.btnGifDownload], async () => {
-  if (!ui.gifFile.files[0]) throw new Error("GIF 파일을 선택해 주세요");
-  const payload = await buildGifPayload();
-  const slot = parseInt(ui.gifSlot.value, 10);
+    const payload = await buildGifPayload();
+  const slot = selectedSlot;
   const uf2 = makeUf2(payload, SLOT_FAMILY_BASE + slot);
-  const base = ui.gifFile.files[0].name.replace(/\.[^.]+$/, "");
+  const base = pickedFile.name.replace(/\.[^.]+$/, "");
   download(uf2, `${base}-slot${slot + 1}.uf2`);
   gifProg.done("UF2 파일을 내려받았습니다");
 });
 
 ui.btnGifDrive.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
-  if (!ui.gifFile.files[0]) throw new Error("GIF 파일을 선택해 주세요");
-  const payload = await buildGifPayload();
-  const slot = parseInt(ui.gifSlot.value, 10);
+    const payload = await buildGifPayload();
+  const slot = selectedSlot;
   const uf2 = makeUf2(payload, SLOT_FAMILY_BASE + slot);
   await writeToDrive(uf2, `slot${slot + 1}.uf2`, t => gifProg.set(0.5, t));
   gifProg.done("드라이브에 복사했습니다");
@@ -674,6 +832,8 @@ function handleDisconnect(e) {
     dev.waiters.clear();
     ui.oldFirmware.hidden = true;
     setConn("연결되지 않음", "");
+    slotState = [];
+    renderSlots();
     refreshButtons();
   }
 }
@@ -688,6 +848,7 @@ if (!("hid" in navigator)) {
   ui.noSupport.hidden = false;
   ui.btnConnect.disabled = true;
 }
+renderSlots();
 loadManifest();
 </script>
 </body>

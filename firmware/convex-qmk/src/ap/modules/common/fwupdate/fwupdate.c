@@ -378,6 +378,65 @@ void fwupdate_cmd_status(void)
   fwupdate_send_resp(FWUPDATE_CMD_STATUS, last_err, buf, sizeof(buf));
 }
 
+void fwupdate_cmd_slot(uint8_t *p_data)
+{
+  uint8_t  slot = p_data[2];
+  uint8_t  buf[26];
+  uint8_t  head[48];
+  uint32_t slot_addr;
+  uint32_t file_size = 0;
+  uint16_t width  = 0;
+  uint16_t height = 0;
+  bool     is_used = false;
+
+
+  memset(buf, 0, sizeof(buf));
+
+  if (slot >= FWUPDATE_SLOT_MAX_CH)
+  {
+    fwupdate_send_resp(FWUPDATE_CMD_SLOT, FWUPDATE_ERR_TARGET, NULL, 0);
+    return;
+  }
+
+  slot_addr = FLASH_ADDR_UPDATE_SLOT + (slot * FLASH_SIZE_SLOT) + FLASH_SIZE_TAG;
+
+  // 헤더 32바이트와 원본 GIF 앞부분을 한 번에 읽는다.
+  //   헤더 : [0..15] 매직, [16..19] 파일 크기
+  //   GIF  : [32..34] "GIF", [38..39] 가로, [40..41] 세로 (논리 화면 크기)
+  if (flashRead(slot_addr, head, sizeof(head)) == true)
+  {
+    memcpy(&file_size, &head[16], 4);
+
+    if (file_size > 0 && file_size != 0xFFFFFFFF && file_size <= FWUPDATE_SLOT_DATA_MAX)
+    {
+      is_used = true;
+
+      if (head[32] == 'G' && head[33] == 'I' && head[34] == 'F')
+      {
+        memcpy(&width,  &head[38], 2);
+        memcpy(&height, &head[40], 2);
+      }
+    }
+    else
+    {
+      file_size = 0;
+    }
+  }
+
+  buf[0] = slot;
+  buf[1] = is_used ? 1 : 0;
+  memcpy(&buf[2], &file_size, 4);
+  memcpy(&buf[6], &width,  2);
+  memcpy(&buf[8], &height, 2);
+
+  if (is_used)
+  {
+    memcpy(&buf[10], head, FWUPDATE_SLOT_MAGIC_SIZE);
+  }
+
+  fwupdate_send_resp(FWUPDATE_CMD_SLOT, FWUPDATE_OK, buf, sizeof(buf));
+}
+
 bool fwupdate_erase(uint32_t addr, uint32_t size)
 {
   uint32_t sector_s;

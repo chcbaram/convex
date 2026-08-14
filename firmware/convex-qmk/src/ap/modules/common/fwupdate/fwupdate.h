@@ -43,6 +43,7 @@ typedef enum
   FWUPDATE_CMD_END    = 0x04,   // crc16 -> flash 재독 검증 + 태그 기록
   FWUPDATE_CMD_COMMIT = 0x05,   // (FIRM) 업데이트 모드로 리셋
   FWUPDATE_CMD_STATUS = 0x06,   // 진행 상태 조회
+  FWUPDATE_CMD_SLOT   = 0x07,   // 슬롯 하나의 현재 상태 조회
 } FwUpdateCmd_t;
 
 typedef enum
@@ -73,6 +74,16 @@ typedef enum
   FWUPDATE_ERR_CRC     = 0x08,   // 기록된 내용의 CRC 불일치
   FWUPDATE_ERR_BUSY    = 0x09,
 } FwUpdateErr_t;
+
+
+// SLOT 응답 배치 (리포트 [3] 부터)
+//   [3]      슬롯 번호
+//   [4]      사용 여부 (0/1)
+//   [5..8]   파일 크기 u32
+//   [9..10]  GIF 가로 u16
+//   [11..12] GIF 세로 u16
+//   [13..28] 매직 문자열 16바이트 (GIF_IMAGE / GIF_MOVIE)
+#define FWUPDATE_SLOT_MAGIC_SIZE  16
 
 
 // USB(ISR) 에서 호출된다. 리포트를 큐에 넣기만 하고 즉시 반환한다.
