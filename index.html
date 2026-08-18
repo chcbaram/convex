@@ -86,7 +86,21 @@
   .lcd { width: 284px; height: 76px; margin: 0 auto; background: #000;
          border-radius: 6px; overflow: hidden; display: flex;
          align-items: center; justify-content: center; max-width: 100%; }
-  .lcd img { display: block; }
+  .lcd img { display: block; flex: none; }
+  .lcd.grab { cursor: grab; }
+  .lcd.grab:active { cursor: grabbing; }
+
+  /* 화면 맞추기 */
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { border: 1px solid var(--line); background: #fff; color: var(--muted);
+                border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600;
+                padding: 8px 12px; cursor: pointer; }
+  .seg button:hover:not(.on) { background: #f8f9fa; }
+  .seg button.on { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+  .seg button.sep { margin-left: auto; color: var(--accent); }
+
+  /* 파일 끌어 놓기 */
+  .panel.drop { outline: 2px dashed var(--accent); outline-offset: 6px; border-radius: 8px; }
 
   /* 슬롯 목록 */
   .slots { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
@@ -177,7 +191,8 @@
   <section class="panel" id="panelGif" role="tabpanel" aria-labelledby="tabGif">
     <label for="gifFile">GIF 파일</label>
     <input type="file" id="gifFile" accept=".gif">
-    <p class="hint" id="gifHint">LCD 해상도는 <b>284 × 76</b> 입니다. 슬롯당 최대 약 2MB.</p>
+    <p class="hint" id="gifHint">LCD 해상도는 <b>284 × 76</b> 입니다. 다른 크기는 넣을 때 맞춰 줍니다.
+      파일을 이 창에 끌어다 놓아도 됩니다. 슬롯당 최대 약 2MB.</p>
     <p class="hint" id="gifDim"></p>
     <p class="hint">예제 불러오기 —
       <button class="linkbtn" type="button" data-sample="sample-image.gif">이미지</button> ·
@@ -187,9 +202,20 @@
       <span style="color:var(--muted)">(내려받지 않고 바로 선택됩니다)</span>
     </p>
 
+    <div id="gifFitWrap" hidden>
+      <label>화면 맞추기 <span class="hint" style="font-weight:400">— 넣을 때 284 × 76 으로 바꿔 줍니다</span></label>
+      <div class="seg">
+        <button type="button" data-fit="none">원본</button>
+        <button type="button" data-fit="width">폭 맞추기</button>
+        <button type="button" data-fit="height">높이 맞추기</button>
+        <button type="button" data-fit="fill">늘리기</button>
+        <button type="button" class="sep" id="btnFitCenter">가운데</button>
+      </div>
+    </div>
+
     <div class="preview" id="gifPreviewWrap" hidden>
-      <div class="lcd"><img id="gifPreview" alt=""></div>
-      <p class="hint" style="text-align:center">기기 화면과 같은 비율입니다 (잘리는 부분이 그대로 보입니다)</p>
+      <div class="lcd" id="gifLcd"><img id="gifPreview" alt=""></div>
+      <p class="hint" id="gifFitHint" style="text-align:center"></p>
     </div>
 
     <label for="gifName">이름 <span class="hint" style="font-weight:400">— 슬롯 목록에 표시됩니다</span></label>
@@ -692,6 +718,7 @@ const ui = {};
 ["dot","connText","btnConnect","noSupport","oldFirmware",
  "tabGif","tabFw","panelGif","panelFw",
  "gifFile","gifName","gifNameHint","gifHint","gifDim","gifPreviewWrap","gifPreview",
+ "gifFitWrap","gifLcd","gifFitHint","btnFitCenter",
  "slotList","btnSlotRefresh","btnGifSend","btnGifDrive","btnGifDownload",
  "gifProgress","gifBar","gifStatus",
  "fwCurrent","fwSelect","fwMeta","fwNotes","btnFwSend","btnFwDrive","btnFwDownload",
@@ -946,13 +973,20 @@ ui.gifName.oninput = () => {
 let previewUrl = null;
 let pickedFile = null;      // { name, bytes } — File 을 그대로 두지 않는다
 let pickedMovie = false;    // 프레임이 2개 이상이면 동영상
+let pickedSize = null;      // 원본 { w, h }
 let nameEdited = false;     // 사용자가 이름을 직접 고쳤는지
+let fitMode = "none";       // none | width | height | fill
+let fitOff  = { x: 0, y: 0 };  // LCD 좌상단 기준 그림 위치
+let fitCache = null;        // { key, bytes } — 같은 설정이면 다시 변환하지 않는다
 
 function setPreview(blob) {
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   previewUrl = blob ? URL.createObjectURL(blob) : null;
   ui.gifPreview.src = previewUrl || "";
   ui.gifPreviewWrap.hidden = !previewUrl;
+  ui.gifFitWrap.hidden = !previewUrl;
+  if (!previewUrl) pickedSize = null;
+  updateFit();
 }
 
 function pickedBytes() {
@@ -995,12 +1029,22 @@ function applyPicked(data, name, blob) {
     pickedMovie = frames > 1;
 
     const bytes = data.length;
-    const fit = size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT;
+    const same  = size.w === LCD_WIDTH && size.h === LCD_HEIGHT;
+    pickedSize = size;
+    setFitDefault(size);
+
+    let tail = "", color = "var(--ok)";
+    if (!same && !canConvert()) {
+      tail  = ` — LCD(${LCD_WIDTH} × ${LCD_HEIGHT}) 와 크기가 달라 기기에서 재생되지 않습니다`;
+      color = "var(--err)";
+    } else if (!same) {
+      tail  = ` — 넣을 때 ${LCD_WIDTH} × ${LCD_HEIGHT} 로 바꿉니다`;
+      color = "var(--warn)";
+    }
     ui.gifDim.textContent =
       `${name} · ${pickedMovie ? `동영상 ${frames}프레임` : "이미지"}` +
-      ` · ${(bytes / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` +
-      (fit ? "" : ` — LCD(${LCD_WIDTH} × ${LCD_HEIGHT}) 보다 커서 잘려 보입니다`);
-    ui.gifDim.style.color = fit ? "var(--ok)" : "var(--warn)";
+      ` · ${(bytes / 1024).toFixed(1)} KB · ${size.w} × ${size.h}` + tail;
+    ui.gifDim.style.color = color;
     setPreview(blob);
   }
   refreshButtons();
@@ -1056,8 +1100,7 @@ function readGifSize(bytes) {
   return { w: dv.getUint16(6, true), h: dv.getUint16(8, true) };
 }
 
-ui.gifFile.onchange = async () => {
-  const f = ui.gifFile.files[0];
+async function usePicked(f) {
   ui.gifDim.textContent = "";
   ui.gifDim.style.color = "";
 
@@ -1067,7 +1110,349 @@ ui.gifFile.onchange = async () => {
   const bytes = new Uint8Array(await f.arrayBuffer());
   pickedFile = { name: f.name, bytes };
   applyPicked(bytes, f.name, f);
-};
+}
+
+ui.gifFile.onchange = () => usePicked(ui.gifFile.files[0]);
+
+// 파일을 패널 위로 끌어다 놓아도 된다. 파일 선택 창을 여는 것과 같다.
+["dragenter", "dragover"].forEach(ev => ui.panelGif.addEventListener(ev, e => {
+  if (![...e.dataTransfer.types].includes("Files")) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "copy";
+  ui.panelGif.classList.add("drop");
+}));
+["dragleave", "dragend", "drop"].forEach(ev => ui.panelGif.addEventListener(ev, e => {
+  // 자식 요소 사이를 지날 때도 dragleave 가 오므로, 패널 밖으로 나갔을 때만 끈다.
+  if (ev === "dragleave" && ui.panelGif.contains(e.relatedTarget)) return;
+  ui.panelGif.classList.remove("drop");
+}));
+ui.panelGif.addEventListener("drop", e => {
+  if (![...e.dataTransfer.types].includes("Files")) return;
+  e.preventDefault();         // 파일 선택 칸에 바로 떨어져도 두 번 처리되지 않게 막는다
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  ui.gifFile.value = "";
+  usePicked(f);
+});
+
+//--------------------------------------------------------------------
+// 화면 맞추기 · 위치 조절
+//--------------------------------------------------------------------
+const FIT_LABEL = { none: "원본", width: "폭 맞추기", height: "높이 맞추기", fill: "늘리기" };
+
+function canConvert() {
+  return typeof ImageDecoder !== "undefined";
+}
+
+// 원본 크기와 모드로 LCD 안에 그릴 크기를 정한다.
+// 미리보기와 실제 변환이 이 값 하나를 같이 쓰므로 보이는 대로 저장된다.
+function fitRect(size, mode) {
+  const { w, h } = size;
+  if (mode === "fill")   return { dw: LCD_WIDTH, dh: LCD_HEIGHT };
+  if (mode === "width")  return { dw: LCD_WIDTH, dh: Math.max(1, Math.round(LCD_WIDTH * h / w)) };
+  if (mode === "height") return { dw: Math.max(1, Math.round(LCD_HEIGHT * w / h)), dh: LCD_HEIGHT };
+  return { dw: w, dh: h };
+}
+
+function centerOff(dw, dh) {
+  return { x: Math.round((LCD_WIDTH - dw) / 2), y: Math.round((LCD_HEIGHT - dh) / 2) };
+}
+
+// 넘치는 축만 끌 수 있다. 남는 축은 가운데 고정.
+function clampOff(off, dw, dh) {
+  const fix = (v, d, box) =>
+    d > box ? Math.min(0, Math.max(box - d, Math.round(v))) : Math.round((box - d) / 2);
+  return { x: fix(off.x, dw, LCD_WIDTH), y: fix(off.y, dh, LCD_HEIGHT) };
+}
+
+// 자르지 않는 쪽을 기본으로 고른다. 통째로 들어가면 원본 그대로 둔다.
+function setFitDefault(size) {
+  fitMode = (size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT) ? "none"
+          : (LCD_WIDTH / size.w <= LCD_HEIGHT / size.h) ? "width" : "height";
+  fitOff  = null;
+}
+
+function updateFit() {
+  if (!pickedSize) {
+    ui.gifFitHint.textContent = "";
+    ui.gifLcd.classList.remove("grab");
+    return;
+  }
+
+  const { dw, dh } = fitRect(pickedSize, fitMode);
+  fitOff = clampOff(fitOff || centerOff(dw, dh), dw, dh);
+
+  // .lcd 가 가운데 정렬이라, 가운데와의 차이만큼만 옮긴다.
+  const c = centerOff(dw, dh);
+  ui.gifPreview.style.width     = dw + "px";
+  ui.gifPreview.style.height    = dh + "px";
+  ui.gifPreview.style.transform = `translate(${fitOff.x - c.x}px, ${fitOff.y - c.y}px)`;
+
+  for (const b of ui.gifFitWrap.querySelectorAll("[data-fit]"))
+    b.classList.toggle("on", b.dataset.fit === fitMode);
+
+  const movable = dw > LCD_WIDTH || dh > LCD_HEIGHT;
+  ui.gifLcd.classList.toggle("grab", movable);
+  ui.btnFitCenter.disabled = !movable;
+
+  const same = pickedSize.w === LCD_WIDTH && pickedSize.h === LCD_HEIGHT;
+  ui.gifFitHint.textContent = same
+    ? `기기 화면과 같은 크기입니다 (원본 그대로 넣습니다)`
+    : `${FIT_LABEL[fitMode]} · ${dw} × ${dh}` + (movable ? " — 끌어서 위치를 조절합니다" : "");
+
+  fitCache = null;
+}
+
+ui.gifFitWrap.querySelectorAll("[data-fit]").forEach(b => {
+  b.onclick = () => { fitMode = b.dataset.fit; fitOff = null; updateFit(); };
+});
+ui.btnFitCenter.onclick = () => { fitOff = null; updateFit(); };
+
+// 끌어서 위치 조절
+let fitDrag = null;
+ui.gifLcd.tabIndex = 0;
+ui.gifLcd.addEventListener("pointerdown", e => {
+  if (!ui.gifLcd.classList.contains("grab")) return;
+  ui.gifLcd.setPointerCapture(e.pointerId);
+  fitDrag = { x: e.clientX, y: e.clientY, off: { ...fitOff } };
+  e.preventDefault();
+});
+ui.gifLcd.addEventListener("pointermove", e => {
+  if (!fitDrag) return;
+  // 좁은 화면에서는 박스가 284px 보다 작게 그려지므로 그만큼 보정한다.
+  const k = LCD_WIDTH / (ui.gifLcd.clientWidth || LCD_WIDTH);
+  fitOff = { x: fitDrag.off.x + (e.clientX - fitDrag.x) * k,
+             y: fitDrag.off.y + (e.clientY - fitDrag.y) * k };
+  updateFit();
+});
+["pointerup", "pointercancel"].forEach(ev =>
+  ui.gifLcd.addEventListener(ev, () => { fitDrag = null; }));
+
+ui.gifLcd.addEventListener("keydown", e => {
+  const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!step || !fitOff) return;
+  e.preventDefault();
+  const n = e.shiftKey ? 10 : 1;
+  fitOff = { x: fitOff.x + step[0] * n, y: fitOff.y + step[1] * n };
+  updateFit();
+});
+
+//--------------------------------------------------------------------
+// LCD 크기로 변환 : 프레임을 다시 그려서 GIF 로 다시 묶는다
+//--------------------------------------------------------------------
+// 펌웨어는 GIF 캔버스 전체를 ARGB8888 로 잡아 두므로(lv_gif.c) 큰 GIF 는
+// 기기에서 열지 못한다. 넣기 전에 브라우저에서 LCD 크기로 줄여 둔다.
+async function decodeFrames(bytes) {
+  const dec = new ImageDecoder({ data: bytes, type: "image/gif" });
+  await dec.tracks.ready;
+  await dec.completed;
+  const n = dec.tracks.selectedTrack.frameCount || 1;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push((await dec.decode({ frameIndex: i })).image);
+  return out;
+}
+
+async function convertToLcd(bytes, onProgress) {
+  const frames = await decodeFrames(bytes);
+  const { dw, dh } = fitRect(pickedSize, fitMode);
+  const off = clampOff(fitOff || centerOff(dw, dh), dw, dh);
+
+  const cv  = document.createElement("canvas");
+  cv.width  = LCD_WIDTH;
+  cv.height = LCD_HEIGHT;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingQuality = "high";
+
+  const shots = [], delays = [];
+  for (let i = 0; i < frames.length; i++) {
+    ctx.fillStyle = "#000";                       // 기기 배경과 같게 채운다
+    ctx.fillRect(0, 0, LCD_WIDTH, LCD_HEIGHT);
+    ctx.drawImage(frames[i], off.x, off.y, dw, dh);
+    shots.push(ctx.getImageData(0, 0, LCD_WIDTH, LCD_HEIGHT).data);
+
+    // 브라우저와 같게, 너무 짧은 딜레이는 100ms 로 본다
+    let cs = Math.round((frames[i].duration || 0) / 10000);
+    delays.push(cs < 2 ? 10 : cs);
+    frames[i].close();
+
+    onProgress(0.6 * (i + 1) / frames.length, `변환 중… ${i + 1} / ${frames.length} 프레임`);
+    if (i % 8 === 7) await new Promise(r => setTimeout(r));   // 화면이 멈추지 않게
+  }
+
+  onProgress(0.75, "색 고르는 중…");
+  const { pal, lut } = quantize(shots);
+  onProgress(0.85, "다시 묶는 중…");
+  const out = buildGif(shots.map(px => indexFrame(px, lut)), pal, delays);
+  onProgress(1, `${LCD_WIDTH} × ${LCD_HEIGHT} 로 변환 완료 (${(out.length / 1024).toFixed(1)} KB)`);
+  return out;
+}
+
+// 색을 256개로 줄인다. RGB 를 5비트씩으로 모아 센 다음 미디언 컷으로 나눈다.
+function quantize(shots) {
+  const N = 32768;
+  const cnt = new Uint32Array(N), sr = new Uint32Array(N),
+        sg  = new Uint32Array(N), sb = new Uint32Array(N);
+
+  for (const px of shots) {
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i], g = px[i + 1], b = px[i + 2];
+      const k = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+      cnt[k]++; sr[k] += r; sg[k] += g; sb[k] += b;
+    }
+  }
+
+  const bins = [];
+  for (let k = 0; k < N; k++) if (cnt[k]) bins.push(k);
+
+  const makeBox = list => {
+    let n = 0, lo = [31, 31, 31], hi = [0, 0, 0];
+    for (const k of list) {
+      n += cnt[k];
+      const c = [(k >> 10) & 31, (k >> 5) & 31, k & 31];
+      for (let i = 0; i < 3; i++) {
+        if (c[i] < lo[i]) lo[i] = c[i];
+        if (c[i] > hi[i]) hi[i] = c[i];
+      }
+    }
+    const w = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]];
+    return { list, n, w, spread: Math.max(w[0], w[1], w[2]) };
+  };
+
+  let boxes = [makeBox(bins)];
+  while (boxes.length < 256) {
+    // 픽셀이 많고 색이 넓게 퍼진 상자부터 나눈다
+    let pick = -1, best = 0;
+    boxes.forEach((x, i) => {
+      if (x.list.length < 2 || x.spread === 0) return;
+      const score = x.n * x.spread;
+      if (score > best) { best = score; pick = i; }
+    });
+    if (pick < 0) break;
+
+    const x  = boxes[pick];
+    const ch = x.w[0] >= x.w[1] && x.w[0] >= x.w[2] ? 10 : (x.w[1] >= x.w[2] ? 5 : 0);
+    const sorted = x.list.slice().sort((p, q) => ((p >> ch) & 31) - ((q >> ch) & 31));
+
+    let cut = 0, acc = 0;                        // 픽셀 수 절반에서 자른다
+    for (; cut < sorted.length - 1; cut++) {
+      acc += cnt[sorted[cut]];
+      if (acc * 2 >= x.n) break;
+    }
+    boxes.splice(pick, 1, makeBox(sorted.slice(0, cut + 1)), makeBox(sorted.slice(cut + 1)));
+  }
+
+  const pal = new Uint8Array(768), lut = new Uint8Array(N);
+  boxes.forEach((x, i) => {
+    let n = 0, r = 0, g = 0, b = 0;
+    for (const k of x.list) { n += cnt[k]; r += sr[k]; g += sg[k]; b += sb[k]; lut[k] = i; }
+    pal[i * 3]     = Math.round(r / n);
+    pal[i * 3 + 1] = Math.round(g / n);
+    pal[i * 3 + 2] = Math.round(b / n);
+  });
+  return { pal, lut };
+}
+
+function indexFrame(px, lut) {
+  const out = new Uint8Array(px.length / 4);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++)
+    out[j] = lut[((px[i] >> 3) << 10) | ((px[i + 1] >> 3) << 5) | (px[i + 2] >> 3)];
+  return out;
+}
+
+// 바이트를 계속 이어 붙이는 통. 결과가 수백 KB 라 배열 전개(...)는 쓸 수 없다.
+function makeSink() {
+  let buf = new Uint8Array(1 << 16), len = 0;
+  const room = n => {
+    if (len + n <= buf.length) return;
+    let cap = buf.length;
+    while (cap < len + n) cap *= 2;
+    const next = new Uint8Array(cap);
+    next.set(buf.subarray(0, len));
+    buf = next;
+  };
+  return {
+    byte(v)      { room(1); buf[len++] = v & 0xFF; },
+    u16(v)       { room(2); buf[len++] = v & 0xFF; buf[len++] = (v >> 8) & 0xFF; },
+    bytes(arr)   { room(arr.length); buf.set(arr, len); len += arr.length; },
+    text(str)    { for (let i = 0; i < str.length; i++) this.byte(str.charCodeAt(i)); },
+    take()       { return buf.slice(0, len); },
+    get length() { return len; },
+  };
+}
+
+// GIF LZW. tools/make_sample_gif.py 와 같은 규칙이다.
+function lzwEncode(data, minCodeSize) {
+  const clear = 1 << minCodeSize, end = clear + 1;
+  let codeSize = minCodeSize + 1, next = end + 1, dict = new Map();
+  const raw = makeSink();
+  let buf = 0, bits = 0;
+
+  const emit = code => {
+    buf |= code << bits;
+    bits += codeSize;
+    while (bits >= 8) { raw.byte(buf); buf >>>= 8; bits -= 8; }
+  };
+
+  emit(clear);
+  let cur = data[0];
+  for (let i = 1; i < data.length; i++) {
+    const b = data[i], key = (cur << 8) | b, got = dict.get(key);
+    if (got !== undefined) { cur = got; continue; }
+    emit(cur);
+    if (next < 4096) {
+      dict.set(key, next++);
+      if (next > (1 << codeSize) && codeSize < 12) codeSize++;
+    } else {
+      emit(clear);
+      dict = new Map(); next = end + 1; codeSize = minCodeSize + 1;
+    }
+    cur = b;
+  }
+  emit(cur);
+  emit(end);
+  if (bits) raw.byte(buf);
+
+  // 255 바이트 이하 서브블록으로 쪼갠다
+  const all = raw.take(), packed = makeSink();
+  for (let i = 0; i < all.length; i += 255) {
+    const chunk = all.subarray(i, i + 255);
+    packed.byte(chunk.length);
+    packed.bytes(chunk);
+  }
+  packed.byte(0);
+  return packed.take();
+}
+
+function buildGif(frames, pal, delays) {
+  const out = makeSink();
+
+  out.text("GIF89a");
+  out.u16(LCD_WIDTH); out.u16(LCD_HEIGHT);
+  out.byte(0xF7); out.byte(0); out.byte(0);      // 전역 색상표 256개
+  out.bytes(pal);
+
+  if (frames.length > 1) {                       // 무한 반복
+    out.byte(0x21); out.byte(0xFF); out.byte(0x0B);
+    out.text("NETSCAPE2.0");
+    out.bytes([0x03, 0x01, 0x00, 0x00, 0x00]);
+  }
+
+  frames.forEach((idx, i) => {
+    if (frames.length > 1) {                     // 프레임 딜레이
+      out.bytes([0x21, 0xF9, 0x04, 0x00]);
+      out.u16(delays[i]);
+      out.bytes([0x00, 0x00]);
+    }
+    out.byte(0x2C);
+    out.u16(0); out.u16(0); out.u16(LCD_WIDTH); out.u16(LCD_HEIGHT);
+    out.byte(0x00);
+    out.byte(8);                                 // LZW 최소 코드 크기
+    out.bytes(lzwEncode(idx, 8));
+  });
+
+  out.byte(0x3B);
+  return out.take();
+}
 
 ui.btnConnect.onclick = async () => {
   try { await connect(); }
@@ -1287,8 +1672,24 @@ function nameBytes(name) {
   return buf;
 }
 
-async function buildGifPayload() {
-  return makeSlotPayload(pickedBytes(), ui.gifName.value.trim(), pickedMovie);
+async function slotBytes(onProgress) {
+  const raw = pickedBytes();
+  if (!pickedSize || (pickedSize.w === LCD_WIDTH && pickedSize.h === LCD_HEIGHT)) return raw;
+
+  if (!canConvert())
+    throw new Error(`${LCD_WIDTH} × ${LCD_HEIGHT} 로 바꿔야 하는데 이 브라우저는 변환을 지원하지 않습니다`);
+
+  // 같은 맞추기 설정이면 다시 변환하지 않는다. 전송하고 UF2 도 받는 경우가 흔하다.
+  const key = `${fitMode}:${fitOff.x}:${fitOff.y}`;
+  if (fitCache && fitCache.key === key) return fitCache.bytes;
+
+  const bytes = await convertToLcd(raw, onProgress);
+  fitCache = { key, bytes };
+  return bytes;
+}
+
+async function buildGifPayload(onProgress) {
+  return makeSlotPayload(await slotBytes(onProgress), ui.gifName.value.trim(), pickedMovie);
 }
 
 function makeSlotPayload(raw, name, isMovie) {
@@ -1325,7 +1726,7 @@ async function guard(prog, btns, fn) {
 }
 
 ui.btnGifSend.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
-  const payload = await buildGifPayload();
+  const payload = await buildGifPayload((r, t) => gifProg.set(r, t));
   const slot = selectedSlot;
   await transfer(TARGET_SLOT, slot, payload, (r, t) => gifProg.set(r, t));
   gifProg.done(`SLOT ${slot + 1} 저장 완료 (${(payload.length / 1024).toFixed(1)} KB)`);
@@ -1334,7 +1735,7 @@ ui.btnGifSend.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.
 });
 
 ui.btnGifDownload.onclick = () => guard(gifProg, [ui.btnGifDownload], async () => {
-    const payload = await buildGifPayload();
+    const payload = await buildGifPayload((r, t) => gifProg.set(r, t));
   const slot = selectedSlot;
   const uf2 = makeUf2(payload, SLOT_FAMILY_BASE + slot);
   const base = pickedFile.name.replace(/\.[^.]+$/, "");
@@ -1343,7 +1744,7 @@ ui.btnGifDownload.onclick = () => guard(gifProg, [ui.btnGifDownload], async () =
 });
 
 ui.btnGifDrive.onclick = () => guard(gifProg, [ui.btnGifSend, ui.btnGifDrive, ui.btnGifDownload], async () => {
-    const payload = await buildGifPayload();
+    const payload = await buildGifPayload((r, t) => gifProg.set(r, t));
   const slot = selectedSlot;
   const uf2 = makeUf2(payload, SLOT_FAMILY_BASE + slot);
   await writeToDrive(uf2, `slot${slot + 1}.uf2`, t => gifProg.set(0.5, t));
