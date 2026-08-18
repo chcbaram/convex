@@ -182,7 +182,8 @@
     <p class="hint">예제 불러오기 —
       <button class="linkbtn" type="button" data-sample="sample-image.gif">이미지</button> ·
       <button class="linkbtn" type="button" data-sample="sample-anim.gif">애니메이션</button> ·
-      <button class="linkbtn" type="button" data-sample="sample-horse.gif">달리는 말</button>
+      <button class="linkbtn" type="button" data-sample="sample-horse.gif">달리는 말</button> ·
+      <button class="linkbtn" type="button" data-sample="sample-logo.gif">로고</button>
       <span style="color:var(--muted)">(내려받지 않고 바로 선택됩니다)</span>
     </p>
 
@@ -943,7 +944,7 @@ ui.gifName.oninput = () => {
 // 미리보기 · 예제 파일
 //--------------------------------------------------------------------
 let previewUrl = null;
-let pickedFile = null;      // File 또는 { name, bytes }
+let pickedFile = null;      // { name, bytes } — File 을 그대로 두지 않는다
 let pickedMovie = false;    // 프레임이 2개 이상이면 동영상
 let nameEdited = false;     // 사용자가 이름을 직접 고쳤는지
 
@@ -954,10 +955,9 @@ function setPreview(blob) {
   ui.gifPreviewWrap.hidden = !previewUrl;
 }
 
-async function pickedBytes() {
+function pickedBytes() {
   if (!pickedFile) throw new Error("GIF 파일을 선택해 주세요");
-  if (pickedFile.bytes) return pickedFile.bytes;
-  return new Uint8Array(await pickedFile.arrayBuffer());
+  return pickedFile.bytes;
 }
 
 document.querySelectorAll("[data-sample]").forEach(a => {
@@ -994,7 +994,7 @@ function applyPicked(data, name, blob) {
     const frames = countGifFrames(data);
     pickedMovie = frames > 1;
 
-    const bytes = pickedFile.bytes ? pickedFile.bytes.length : pickedFile.size;
+    const bytes = data.length;
     const fit = size.w <= LCD_WIDTH && size.h <= LCD_HEIGHT;
     ui.gifDim.textContent =
       `${name} · ${pickedMovie ? `동영상 ${frames}프레임` : "이미지"}` +
@@ -1063,9 +1063,10 @@ ui.gifFile.onchange = async () => {
 
   if (!f) { pickedFile = null; setPreview(null); refreshButtons(); return; }
 
-  pickedFile = f;
   // 프레임 수를 세려면 전체가 필요하다. 슬롯 상한이 2MB 라 부담되지 않는다.
-  applyPicked(new Uint8Array(await f.arrayBuffer()), f.name, f);
+  const bytes = new Uint8Array(await f.arrayBuffer());
+  pickedFile = { name: f.name, bytes };
+  applyPicked(bytes, f.name, f);
 };
 
 ui.btnConnect.onclick = async () => {
@@ -1287,7 +1288,7 @@ function nameBytes(name) {
 }
 
 async function buildGifPayload() {
-  return makeSlotPayload(await pickedBytes(), ui.gifName.value.trim(), pickedMovie);
+  return makeSlotPayload(pickedBytes(), ui.gifName.value.trim(), pickedMovie);
 }
 
 function makeSlotPayload(raw, name, isMovie) {
